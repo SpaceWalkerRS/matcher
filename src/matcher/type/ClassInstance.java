@@ -40,8 +40,8 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	/**
 	 * Create a known class (class path).
 	 */
-	public ClassInstance(String id, URI uri, ClassEnv env, ClassNode asmNode) {
-		this(id, uri, env, asmNode, false, false, null);
+	public ClassInstance(String id, URI origin, ClassEnv env, ClassNode asmNode) {
+		this(id, origin, env, asmNode, false, false, null);
 
 		assert id.indexOf('[') == -1 : id;
 	}
@@ -62,20 +62,20 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	/**
 	 * Create a non-array class.
 	 */
-	ClassInstance(String id, URI uri, ClassEnv env, ClassNode asmNode, boolean nameObfuscated) {
-		this(id, uri, env, asmNode, nameObfuscated, true, null);
+	ClassInstance(String id, URI origin, ClassEnv env, ClassNode asmNode, boolean nameObfuscated) {
+		this(id, origin, env, asmNode, nameObfuscated, true, null);
 
 		assert id.startsWith("L") : id;
 		assert id.indexOf('[') == -1 : id;
 		assert asmNode != null;
 	}
 
-	private ClassInstance(String id, URI uri, ClassEnv env, ClassNode asmNode, boolean nameObfuscated, boolean input, ClassInstance elementClass) {
+	private ClassInstance(String id, URI origin, ClassEnv env, ClassNode asmNode, boolean nameObfuscated, boolean input, ClassInstance elementClass) {
 		if (id.isEmpty()) throw new IllegalArgumentException("empty id");
 		if (env == null) throw new NullPointerException("null env");
 
 		this.id = id;
-		this.uri = uri;
+		this.origin = origin;
 		this.env = env;
 		this.asmNodes = asmNode == null ? null : new ClassNode[] { asmNode };
 		this.nameObfuscated = nameObfuscated;
@@ -102,8 +102,12 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 	@Override
 	public String getName(NameType type) {
+		return getName(type, true);
+	}
+
+	public String getName(NameType type, boolean includeOuter) {
 		if (type == NameType.PLAIN) {
-			return getName();
+			return includeOuter ? getName() : getInnerName0(getName());
 		} else if (elementClass != null) {
 			boolean isPrimitive = elementClass.isPrimitive();
 			StringBuilder ret = new StringBuilder();
@@ -111,7 +115,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			ret.append(id, 0, getArrayDimensions());
 
 			if (!isPrimitive) ret.append('L');
-			ret.append(elementClass.getName(type));
+			ret.append(elementClass.getName(type, includeOuter));
 			if (!isPrimitive) ret.append(';');
 
 			return ret.toString();
@@ -163,6 +167,8 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 		assert ret == null || !hasOuterName(ret);
 
+		if (!includeOuter) return ret;
+
 		/*
 		 * ret-outer: whether ret's source has an outer class
 		 * this-outer: whether this has an outer class
@@ -180,7 +186,11 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		} else if (outerClass != null) { // ret is normal name, strip package from ret before concatenating
 			return getNestedName(outerClass.getName(type), ret.substring(ret.lastIndexOf('/') + 1));
 		} else { // ret is an outer name, restore pkg
-			return getNestedName(matchedClass.outerClass.getName(type), ret);
+			String matchedOuterName = matchedClass.outerClass.getName(type);
+			int pkgEnd = matchedOuterName.lastIndexOf('/');
+			if (pkgEnd > 0) ret = matchedOuterName.substring(0, pkgEnd + 1).concat(ret);
+
+			return ret;
 		}
 	}
 
@@ -241,8 +251,12 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return full ? ret : ret.substring(ret.lastIndexOf('.') + 1);
 	}
 
-	public URI getUri() {
-		return uri;
+	public boolean isReal() {
+		return origin != null;
+	}
+
+	public URI getOrigin() {
+		return origin;
 	}
 
 	@Override
@@ -259,6 +273,12 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return asmNodes;
 	}
 
+	public URI getAsmNodeOrigin(int index) {
+		if (index < 0 || index > 0 && (asmNodeOrigins == null || index >= asmNodeOrigins.length)) throw new IndexOutOfBoundsException(index);
+
+		return index == 0 ? origin : asmNodeOrigins[index];
+	}
+
 	public ClassNode getMergedAsmNode() {
 		if (asmNodes == null) return null;
 		if (asmNodes.length == 1) return asmNodes[0];
@@ -266,11 +286,20 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return asmNodes[0]; // TODO: actually merge
 	}
 
-	void addAsmNode(ClassNode node) {
+	void addAsmNode(ClassNode node, URI origin) {
 		if (!input) throw new IllegalStateException("not mergeable");
 
 		asmNodes = Arrays.copyOf(asmNodes, asmNodes.length + 1);
 		asmNodes[asmNodes.length - 1] = node;
+
+		if (asmNodeOrigins == null) {
+			asmNodeOrigins = new URI[2];
+			asmNodeOrigins[0] = this.origin;
+		} else {
+			asmNodeOrigins = Arrays.copyOf(asmNodeOrigins, asmNodeOrigins.length + 1);
+		}
+
+		asmNodeOrigins[asmNodeOrigins.length - 1] = origin;
 	}
 
 	@Override
@@ -279,7 +308,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		if (!isMatchable()) return false;
 
 		for (ClassInstance o : env.getOther().getClasses()) {
-			if (ClassifierUtil.checkPotentialEquality(this, o)) return true;
+			if (o.isReal() && ClassifierUtil.checkPotentialEquality(this, o)) return true;
 		}
 
 		return false;
@@ -409,22 +438,31 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public int getAccess() {
+		int ret;
+
 		if (asmNodes != null) {
-			return asmNodes[0].access;
+			ret = asmNodes[0].access;
+
+			if (superClass != null && superClass.id.equals("Ljava/lang/Record;")) { // ACC_RECORD is added by ASM through Record component attribute presence, don't trust the flag to handle stripping of the attribute
+				ret |= Opcodes.ACC_RECORD;
+			}
 		} else {
-			int ret = Opcodes.ACC_PUBLIC;
+			ret = Opcodes.ACC_PUBLIC;
 
 			if (!implementers.isEmpty()) {
 				ret |= Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT;
 			} else if (superClass != null && superClass.id.equals("Ljava/lang/Enum;")) {
 				ret |= Opcodes.ACC_ENUM;
 				if (childClasses.isEmpty()) ret |= Opcodes.ACC_FINAL;
+			} else if (superClass != null && superClass.id.equals("Ljava/lang/Record;")) {
+				ret |= Opcodes.ACC_RECORD;
+				if (childClasses.isEmpty()) ret |= Opcodes.ACC_FINAL;
 			} else if (interfaces.size() == 1 && interfaces.iterator().next().id.equals("Ljava/lang/annotation/Annotation;")) {
 				ret |= Opcodes.ACC_ANNOTATION | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT;
 			}
-
-			return ret;
 		}
+
+		return ret;
 	}
 
 	public boolean isInterface() {
@@ -440,7 +478,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean isRecord() {
-		return (getAccess() & Opcodes.ACC_RECORD) != 0;
+		return (getAccess() & Opcodes.ACC_RECORD) != 0 || superClass != null && superClass.id.equals("Ljava/lang/Record;");
 	}
 
 	public MethodInstance getMethod(String id) {
@@ -1073,7 +1111,9 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public static boolean hasOuterName(String name) {
-		return name.indexOf('$') > 0; // ignore names starting with $
+		int pos = name.indexOf('$');
+
+		return pos > 0 && name.charAt(pos - 1) != '/'; // ignore names starting with $
 	}
 
 	public static String getInnerName(String name) {
@@ -1095,9 +1135,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	private static final FieldInstance[] noFields = new FieldInstance[0];
 
 	final String id;
-	final URI uri;
+	private final URI origin;
 	final ClassEnv env;
 	private ClassNode[] asmNodes;
+	private URI[] asmNodeOrigins;
 	final boolean nameObfuscated;
 	private final boolean input;
 	final ClassInstance elementClass; // 0-dim class TODO: improve handling of array classes (references etc.)

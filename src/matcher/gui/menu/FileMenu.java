@@ -25,6 +25,9 @@ import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.stage.Window;
 
+import net.fabricmc.mappingio.MappingReader;
+import net.fabricmc.mappingio.format.MappingFormat;
+
 import matcher.Util;
 import matcher.config.Config;
 import matcher.config.ProjectConfig;
@@ -33,8 +36,6 @@ import matcher.gui.Gui.SelectedFile;
 import matcher.gui.menu.LoadMappingsPane.MappingsLoadSettings;
 import matcher.gui.menu.LoadProjectPane.ProjectLoadSettings;
 import matcher.gui.menu.SaveMappingsPane.MappingsSaveSettings;
-import matcher.mapping.MappingFormat;
-import matcher.mapping.MappingReader;
 import matcher.mapping.Mappings;
 import matcher.serdes.MatchesIo;
 import matcher.type.ClassEnvironment;
@@ -105,24 +106,30 @@ public class FileMenu extends Menu {
 	}
 
 	private void newProject() {
-		newProject(Config.getProjectConfig());
+		newProject(Config.getProjectConfig(), true);
 	}
 
-	public CompletableFuture<Boolean> newProject(ProjectConfig config) {
-		Dialog<ProjectConfig> dialog = new Dialog<>();
-		//dialog.initModality(Modality.APPLICATION_MODAL);
-		dialog.setResizable(true);
-		dialog.setTitle("Project configuration");
-		dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+	public CompletableFuture<Boolean> newProject(ProjectConfig config, boolean showConfigDialog) {
+		ProjectConfig newConfig;
 
-		Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
-		NewProjectPane content = new NewProjectPane(config, dialog.getOwner(), okButton);
+		if (showConfigDialog) {
+			Dialog<ProjectConfig> dialog = new Dialog<>();
+			//dialog.initModality(Modality.APPLICATION_MODAL);
+			dialog.setResizable(true);
+			dialog.setTitle("Project configuration");
+			dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-		dialog.getDialogPane().setContent(content);
-		dialog.setResultConverter(button -> button == ButtonType.OK ? content.createConfig() : null);
+			Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
+			NewProjectPane content = new NewProjectPane(config, dialog.getOwner(), okButton);
 
-		ProjectConfig newConfig = dialog.showAndWait().orElse(null);
-		if (newConfig == null || !newConfig.isValid()) return CompletableFuture.completedFuture(false);
+			dialog.getDialogPane().setContent(content);
+			dialog.setResultConverter(button -> button == ButtonType.OK ? content.createConfig() : null);
+
+			newConfig = dialog.showAndWait().orElse(null);
+			if (newConfig == null || !newConfig.isValid()) return CompletableFuture.completedFuture(false);
+		} else {
+			newConfig = config;
+		}
 
 		Config.setProjectConfig(newConfig);
 		Config.saveAsLast();
@@ -140,7 +147,7 @@ public class FileMenu extends Menu {
 				() -> gui.onProjectChange(),
 				exc -> {
 					exc.printStackTrace();
-					ret.complete(false);
+					ret.completeExceptionally(exc);
 				});
 
 		return ret;
@@ -203,7 +210,7 @@ public class FileMenu extends Menu {
 		if (file == null) return;
 
 		try {
-			String[] namespaces = MappingReader.getNamespaces(file, format);
+			List<String> namespaces = MappingReader.getNamespaces(file, format);
 
 			Dialog<MappingsLoadSettings> dialog = new Dialog<>();
 			//dialog.initModality(Modality.APPLICATION_MODAL);
@@ -334,7 +341,7 @@ public class FileMenu extends Menu {
 				}
 
 				if (!Mappings.save(savePath, saveFormat, (settings.a ? env.getEnvA() : env.getEnvB()),
-						settings.nsTypes, settings.nsNames, settings.verbosity, settings.fieldsFirst)) {
+						settings.nsTypes, settings.nsNames, settings.verbosity, settings.forAnyInput, settings.fieldsFirst)) {
 					gui.showAlert(AlertType.WARNING, "Mapping save warning", "No mappings to save", "There are currently no names mapped to matched classes, so saving was aborted.");
 				}
 			} catch (IOException e) {

@@ -25,12 +25,12 @@ public abstract class MemberInstance<T extends MemberInstance<T>> implements Mat
 		}
 	}
 
-	public ClassInstance getCls() {
+	public final ClassInstance getCls() {
 		return cls;
 	}
 
 	@Override
-	public String getId() {
+	public final String getId() {
 		return id;
 	}
 
@@ -87,6 +87,7 @@ public abstract class MemberInstance<T extends MemberInstance<T>> implements Mat
 	}
 
 	public abstract String getDesc();
+	public abstract String getDesc(NameType type);
 	public abstract boolean isReal();
 
 	@Override
@@ -133,6 +134,9 @@ public abstract class MemberInstance<T extends MemberInstance<T>> implements Mat
 	public boolean isSynthetic() {
 		return (getAccess() & Opcodes.ACC_SYNTHETIC) != 0;
 	}
+
+	public abstract boolean canBeRecordComponent();
+	public abstract MemberInstance<?> getLinkedRecordComponent(NameType nameType);
 
 	void addParent(T parent) {
 		assert parent.getCls() != getCls();
@@ -343,7 +347,7 @@ public abstract class MemberInstance<T extends MemberInstance<T>> implements Mat
 		return getDisplayName(NameType.PLAIN, true);
 	}
 
-	public static final Comparator<MemberInstance<?>> nameComparator = Comparator.<MemberInstance<?>, String>comparing(MemberInstance::getName).thenComparing(MemberInstance::getDesc);
+	public static final Comparator<MemberInstance<?>> nameComparator = Comparator.<MemberInstance<?>, String>comparing(MemberInstance::getName).thenComparing(m -> m.getDesc());
 
 	final ClassInstance cls;
 	final String id;
