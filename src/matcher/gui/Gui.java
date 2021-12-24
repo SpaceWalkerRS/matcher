@@ -87,6 +87,8 @@ public class Gui extends Application {
 			l.accept(this);
 		}
 
+		scene.getStylesheets().add(Gui.class.getResource("/ui/style.css").toExternalForm());
+
 		stage.setScene(scene);
 		stage.setTitle("Matcher");
 		stage.show();
