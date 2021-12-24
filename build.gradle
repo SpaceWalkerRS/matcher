@@ -47,7 +47,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
-    implementation "com.github.javaparser:javaparser-core:3.8.3"
+    implementation 'com.github.javaparser:javaparser-core:3.23.1'
 	implementation "org.bitbucket.mstrobel:procyon-compilertools:0.5.33.6"
 	implementation "org.ow2.asm:asm:9.1"
 	implementation "org.ow2.asm:asm-commons:9.1"
@@ -55,6 +55,7 @@ dependencies {
 	implementation "org.ow2.asm:asm-util:9.1"
 	implementation "org.benf:cfr:0.151"
 	implementation "net.fabricmc:fabric-fernflower:1.3.0"
+	implementation "net.fabricmc:mapping-io:0.3.0"
 }
 
 extraJavaModuleInfo {
