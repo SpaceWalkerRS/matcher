@@ -41,7 +41,7 @@ import matcher.config.ProjectConfig;
 import matcher.srcprocess.Decompiler;
 import matcher.type.Signature.ClassSignature;
 
-public final class ClassEnvironment implements ClassEnv {
+public class ClassEnvironment implements ClassEnv {
 	public void init(ProjectConfig config, DoubleConsumer progressReceiver) {
 		final double cpInitCost = 0.05;
 		final double classReadCost = 0.2;
@@ -610,8 +610,8 @@ public final class ClassEnvironment implements ClassEnv {
 
 	private final List<InputFile> cpFiles = new ArrayList<>();
 	private final Map<String, ClassInstance> sharedClasses = new HashMap<>();
-	private final List<FileSystem> openFileSystems = new ArrayList<>();
-	private final Map<String, Path> classPathIndex = new HashMap<>();
+	public final List<FileSystem> openFileSystems = new ArrayList<>();
+	public final Map<String, Path> classPathIndex = new HashMap<>();
 	private final ClassFeatureExtractor extractorA = new ClassFeatureExtractor(this);
 	private final ClassFeatureExtractor extractorB = new ClassFeatureExtractor(this);
 	private final MatchingCache cache = new MatchingCache();

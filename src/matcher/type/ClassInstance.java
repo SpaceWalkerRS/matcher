@@ -1151,7 +1151,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 	private ClassInstance[] arrays = noArrays;
 
-	ClassInstance outerClass;
+	public ClassInstance outerClass;
 	final Set<ClassInstance> innerClasses = Util.newIdentityHashSet();
 
 	ClassInstance superClass;

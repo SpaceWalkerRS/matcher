@@ -13,7 +13,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 public class InputFile {
-	InputFile(Path path) {
+	public InputFile(Path path) {
 		try {
 			this.path = path;
 			this.fileName = getSanitizedFileName(path);
