@@ -25,7 +25,7 @@ module matcher {
 	requires org.objectweb.asm.tree.analysis;
 	requires org.objectweb.asm.util;
 	requires procyon.compilertools;
-	requires transitive net.fabricmc.mappingio;
+	requires net.fabricmc.mappingio;
 
 	uses matcher.Plugin;
 }

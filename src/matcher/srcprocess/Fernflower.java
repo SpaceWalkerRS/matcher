@@ -31,6 +31,7 @@ import org.jetbrains.java.decompiler.struct.IDecompiledData;
 import org.jetbrains.java.decompiler.struct.StructClass;
 import org.jetbrains.java.decompiler.struct.StructContext;
 import org.jetbrains.java.decompiler.struct.lazy.LazyLoader;
+import org.jetbrains.java.decompiler.util.DataInputFullStream;
 import org.jetbrains.java.decompiler.util.TextBuffer;
 
 import matcher.NameType;
@@ -160,7 +161,7 @@ public class Fernflower implements Decompiler {
 			byte[] data = bcProvider.get(name); // BytecodeProvider has a name->byte[] cache to avoid redundant cls.serialize invocations
 			if (data == null) throw new IllegalStateException();
 
-			StructClass cl = new StructClass(data, isOwn, loader);
+			StructClass cl = StructClass.create(new DataInputFullStream(data), isOwn, loader);
 			classes.put(cl.qualifiedName, cl);
 
 			ContextUnit unit = isOwn ? ownedUnit : unownedUnit;

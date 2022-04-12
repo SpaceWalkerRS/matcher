@@ -26,43 +26,36 @@ sourceSets {
 }
 
 javafx {
-	version = "11.0.2"
+	version = "17.0.1"
 	modules = [ 'javafx.controls', 'javafx.web' ]
 }
 
 java {
-	sourceCompatibility = JavaVersion.VERSION_11
-	targetCompatibility = JavaVersion.VERSION_11
-
-	if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_11)) {
-		toolchain {
-			languageVersion = JavaLanguageVersion.of(11)
-		}
-	}
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
 }
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.encoding = "UTF-8"
-	it.options.release = 11
 }
 
 dependencies {
-    implementation 'com.github.javaparser:javaparser-core:3.23.1'
-	implementation "org.bitbucket.mstrobel:procyon-compilertools:0.5.33.6"
-	implementation "org.ow2.asm:asm:9.1"
-	implementation "org.ow2.asm:asm-commons:9.1"
-	implementation "org.ow2.asm:asm-tree:9.1"
-	implementation "org.ow2.asm:asm-util:9.1"
-	implementation "org.benf:cfr:0.151"
-	implementation "net.fabricmc:fabric-fernflower:1.3.0"
+    implementation 'com.github.javaparser:javaparser-core:3.24.0'
+	implementation 'org.bitbucket.mstrobel:procyon-compilertools:0.5.36'
+	implementation 'org.ow2.asm:asm:9.2'
+	implementation 'org.ow2.asm:asm-commons:9.2'
+	implementation 'org.ow2.asm:asm-tree:9.2'
+	implementation 'org.ow2.asm:asm-util:9.2'
+	implementation 'org.benf:cfr:0.152'
+	implementation "net.fabricmc:fabric-fernflower:1.5.0"
 	implementation "net.fabricmc:mapping-io:0.3.0"
 }
 
 extraJavaModuleInfo {
-	automaticModule("cfr-0.151.jar", "cfr")
-	automaticModule("procyon-compilertools-0.5.33.6.jar", "procyon.compilertools")
-	automaticModule("procyon-core-0.5.33.6.jar", "procyon.core")
-	automaticModule("fabric-fernflower-1.3.0.jar", "intellij.fernflower")
+	automaticModule("cfr-0.152.jar", "cfr")
+	automaticModule("procyon-compilertools-0.5.36.jar", "procyon.compilertools")
+	automaticModule("procyon-core-0.5.36.jar", "procyon.core")
+	automaticModule("fabric-fernflower-1.5.0.jar", "intellij.fernflower")
 }
 
 application {
