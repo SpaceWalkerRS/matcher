@@ -132,7 +132,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			// MAPPED_*, local name available
 			ret = mappedName;
 			fromMatched = false;
-		} else if (type.mapped && matchedClass != null && matchedClass.mappedName != null) {
+		} else if (type.mapped && matchedClass != null && canTransferMatchedName(matchedClass.mappedName)) {
 			// MAPPED_*, remote name available
 			ret = matchedClass.mappedName;
 			fromMatched = true;
@@ -147,7 +147,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		} else if (type.isAux() && auxName != null && auxName.length > type.getAuxIndex() && auxName[type.getAuxIndex()] != null) {
 			ret = auxName[type.getAuxIndex()];
 			fromMatched = false;
-		} else if (type.isAux() && matchedClass != null && matchedClass.auxName != null && matchedClass.auxName.length > type.getAuxIndex() && matchedClass.auxName[type.getAuxIndex()] != null) {
+		} else if (type.isAux() && matchedClass != null && matchedClass.auxName != null && matchedClass.auxName.length > type.getAuxIndex() && canTransferMatchedName(matchedClass.auxName[type.getAuxIndex()])) {
 			ret = matchedClass.auxName[type.getAuxIndex()];
 			fromMatched = true;
 		} else if (type.tmp && matchedClass != null && matchedClass.tmpName != null) {
@@ -192,6 +192,14 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 			return ret;
 		}
+	}
+
+	private boolean canTransferMatchedName(String name) {
+		if (name == null || name.isEmpty()) return false;
+
+		return !matchedClass.nameObfuscated
+				|| outerClass != null || matchedClass.outerClass == null // no outer -> inner transfer
+				|| Character.isJavaIdentifierStart(name.charAt(0));
 	}
 
 	private String getInnerName0(String name) {
@@ -1111,9 +1119,17 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public static boolean hasOuterName(String name) {
-		int pos = name.indexOf('$');
+		return hasOuterName(name, name.indexOf('$'));
+	}
 
-		return pos > 0 && name.charAt(pos - 1) != '/'; // ignore names starting with $
+	private static boolean hasOuterName(String name, int sepPos) {
+		return sepPos > 0 && name.charAt(sepPos - 1) != '/'; // ignore names starting with $
+	}
+
+	public static String getOuterName(String name) {
+		int pos = name.lastIndexOf('$');
+
+		return hasOuterName(name, pos) ? name.substring(0, pos) : null;
 	}
 
 	public static String getInnerName(String name) {
@@ -1126,6 +1142,16 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		} else {
 			return outerName + '$' + innerName;
 		}
+	}
+
+	public static String getPackageName(String name) {
+		int pos = name.lastIndexOf('/');
+
+		return pos > 0 ? name.substring(0, pos) : null;
+	}
+
+	public static String getClassName(String name) {
+		return name.substring(name.lastIndexOf('/') + 1);
 	}
 
 	public static final Comparator<ClassInstance> nameComparator = Comparator.comparing(ClassInstance::getName);
