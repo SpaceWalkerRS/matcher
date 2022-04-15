@@ -41,9 +41,10 @@ import matcher.gui.GuiConstants;
 import matcher.gui.GuiUtil;
 
 public class NewProjectPane extends GridPane {
-	NewProjectPane(ProjectConfig config, Window window, Node okButton) {
+	NewProjectPane(ProjectConfig config, Window window, Node okButton, boolean forNester) {
 		this.window = window;
 		this.okButton = okButton;
+		this.forNester = forNester;
 
 		pathsA = FXCollections.observableArrayList(config.getPathsA());
 		pathsB = FXCollections.observableArrayList(config.getPathsB());
@@ -75,43 +76,56 @@ public class NewProjectPane extends GridPane {
 		rowConstraintShared.setVgrow(Priority.SOMETIMES);
 		getRowConstraints().addAll(rowConstraintInput, rowConstraintClassPath, rowConstraintButtons, rowConstraintShared);
 
-		add(createFilesSelectionPane("Inputs A", pathsA, window, false, false), 0, 0);
-		add(createFilesSelectionPane("Inputs B", pathsB, window, false, false), 1, 0);
-		add(createFilesSelectionPane("Class path A", classPathA, window, true, false), 0, 1);
-		add(createFilesSelectionPane("Class path B", classPathB, window, true, false), 1, 1);
+		if (forNester) {
+			add(createFilesSelectionPane("Inputs", pathsA, window, false, false), 0, 0, 2, 1);
+			add(createFilesSelectionPane("Class path", classPathA, window, true, false), 0, 1, 2, 1);
+		} else {
+			add(createFilesSelectionPane("Inputs A", pathsA, window, false, false), 0, 0);
+			add(createFilesSelectionPane("Class path A", classPathA, window, true, false), 0, 1);
+			add(createFilesSelectionPane("Inputs B", pathsB, window, false, false), 1, 0);
+			add(createFilesSelectionPane("Class path B", classPathB, window, true, false), 1, 1);
 
-		HBox hbox = new HBox(GuiConstants.padding);
-		Button swapButton = new Button("swap A ⇄ B");
-		hbox.getChildren().add(swapButton);
-		swapButton.setOnAction(event -> {
-			List<Path> paths = new ArrayList<>(pathsA);
-			pathsA.clear();
-			pathsA.addAll(pathsB);
-			pathsB.setAll(paths);
+			HBox hbox = new HBox(GuiConstants.padding);
+			Button swapButton = new Button("swap A ⇄ B");
+			hbox.getChildren().add(swapButton);
+			swapButton.setOnAction(event -> {
+				List<Path> paths = new ArrayList<>(pathsA);
+				pathsA.clear();
+				pathsA.addAll(pathsB);
+				pathsB.setAll(paths);
 
-			paths.clear();
-			paths.addAll(classPathA);
-			classPathA.clear();
-			classPathA.addAll(classPathB);
-			classPathB.setAll(paths);
+				paths.clear();
+				paths.addAll(classPathA);
+				classPathA.clear();
+				classPathA.addAll(classPathB);
+				classPathB.setAll(paths);
 
-			String tmp = nonObfuscatedClassPatternA.getText();
-			nonObfuscatedClassPatternA.setText(nonObfuscatedClassPatternB.getText());
-			nonObfuscatedClassPatternB.setText(tmp);
+				String tmp = nonObfuscatedClassPatternA.getText();
+				nonObfuscatedClassPatternA.setText(nonObfuscatedClassPatternB.getText());
+				nonObfuscatedClassPatternB.setText(tmp);
 
-			tmp = nonObfuscatedMemberPatternA.getText();
-			nonObfuscatedMemberPatternA.setText(nonObfuscatedMemberPatternB.getText());
-			nonObfuscatedMemberPatternB.setText(tmp);
-		});
-		add(hbox, 0, 2, 2, 1);
+				tmp = nonObfuscatedMemberPatternA.getText();
+				nonObfuscatedMemberPatternA.setText(nonObfuscatedMemberPatternB.getText());
+				nonObfuscatedMemberPatternB.setText(tmp);
+			});
+			add(hbox, 0, 2, 2, 1);
 
-		add(createFilesSelectionPane("Shared class path", sharedClassPath, window, true, true), 0, 3, 2, 1);
-		// TODO: config.inputsBeforeClassPath
+			add(createFilesSelectionPane("Shared class path", sharedClassPath, window, true, true), 0, 3, 2, 1);
+			// TODO: config.inputsBeforeClassPath
+		}
 
 		add(createMiscPane(), 0, 4, 2, 1);
 
-		ListChangeListener<Path> listChangeListener = change -> okButton.setDisable(!createConfig().isValid());
-		InvalidationListener invalidationListener = change -> okButton.setDisable(!createConfig().isValid());
+		ListChangeListener<Path> listChangeListener = change -> {
+			if (selected) {
+				okButton.setDisable(!createConfig().isValid());
+			}
+		};
+		InvalidationListener invalidationListener = change -> {
+			if (selected) {
+				okButton.setDisable(!createConfig().isValid());
+			}
+		};
 
 		pathsA.addListener(listChangeListener);
 		pathsB.addListener(listChangeListener);
@@ -294,20 +308,43 @@ public class NewProjectPane extends GridPane {
 	private Node createMiscPane() {
 		VBox ret = new VBox(GuiConstants.padding);
 
-		ret.getChildren().add(new Label("Non-obfuscated class name pattern A (regex):"));
-		ret.getChildren().add(nonObfuscatedClassPatternA);
-		ret.getChildren().add(new Label("Non-obfuscated class name pattern B (regex):"));
-		ret.getChildren().add(nonObfuscatedClassPatternB);
-		ret.getChildren().add(new Label("Non-obfuscated member name pattern A (regex):"));
-		ret.getChildren().add(nonObfuscatedMemberPatternA);
-		ret.getChildren().add(new Label("Non-obfuscated member name pattern B (regex):"));
-		ret.getChildren().add(nonObfuscatedMemberPatternB);
+		if (forNester) {
+			ret.getChildren().add(new Label("Non-obfuscated class name pattern (regex):"));
+			ret.getChildren().add(nonObfuscatedClassPatternA);
+			ret.getChildren().add(new Label("Non-obfuscated member name pattern (regex):"));
+			ret.getChildren().add(nonObfuscatedMemberPatternA);
+		} else {
+			ret.getChildren().add(new Label("Non-obfuscated class name pattern A (regex):"));
+			ret.getChildren().add(nonObfuscatedClassPatternA);
+			ret.getChildren().add(new Label("Non-obfuscated class name pattern B (regex):"));
+			ret.getChildren().add(nonObfuscatedClassPatternB);
+			ret.getChildren().add(new Label("Non-obfuscated member name pattern A (regex):"));
+			ret.getChildren().add(nonObfuscatedMemberPatternA);
+			ret.getChildren().add(new Label("Non-obfuscated member name pattern B (regex):"));
+			ret.getChildren().add(nonObfuscatedMemberPatternB);
+		}
 
 		return ret;
 	}
 
+	public boolean isSelected() {
+		return selected;
+	}
+
+	public void setSelected(boolean selected) {
+		this.selected = selected;
+	}
+
 	public ProjectConfig createConfig() {
-		return new ProjectConfig(new ArrayList<>(pathsA),
+		return forNester
+			? new ProjectConfig(
+				new ArrayList<>(pathsA),
+				new ArrayList<>(classPathA),
+				inputsBeforeClassPath,
+				nonObfuscatedClassPatternA.getText(),
+				nonObfuscatedMemberPatternA.getText())
+			: new ProjectConfig(
+				new ArrayList<>(pathsA),
 				new ArrayList<>(pathsB),
 				new ArrayList<>(classPathA),
 				new ArrayList<>(classPathB),
@@ -321,6 +358,7 @@ public class NewProjectPane extends GridPane {
 
 	private final Window window;
 	private final Node okButton;
+	private final boolean forNester;
 
 	private final ObservableList<Path> pathsA;
 	private final ObservableList<Path> pathsB;
@@ -332,4 +370,6 @@ public class NewProjectPane extends GridPane {
 	private final TextField nonObfuscatedClassPatternB;
 	private final TextField nonObfuscatedMemberPatternA;
 	private final TextField nonObfuscatedMemberPatternB;
+
+	private boolean selected;
 }

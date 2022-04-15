@@ -10,7 +10,7 @@ import java.util.regex.PatternSyntaxException;
 
 public class ProjectConfig {
 	public ProjectConfig() {
-		this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), false, "", "", "", "");
+		this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), false, "", "", "", "", false);
 	}
 
 	ProjectConfig(Preferences prefs) throws BackingStoreException {
@@ -23,11 +23,21 @@ public class ProjectConfig {
 				prefs.get(nonObfuscatedClassPatternAKey, ""),
 				prefs.get(nonObfuscatedClassPatternBKey, ""),
 				prefs.get(nonObfuscatedMemberPatternAKey, ""),
-				prefs.get(nonObfuscatedMemberPatternBKey, ""));
+				prefs.get(nonObfuscatedMemberPatternBKey, ""),
+				prefs.getBoolean(isNesterProjectKey, false));
 	}
 
 	public ProjectConfig(List<Path> pathsA, List<Path> pathsB, List<Path> classPathA, List<Path> classPathB, List<Path> sharedClassPath, boolean inputsBeforeClassPath,
 			String nonObfuscatedClassesPatternA, String nonObfuscatedClassesPatternB, String nonObfuscatedMemberPatternA, String nonObfuscatedMemberPatternB) {
+		this(pathsA, pathsB, classPathA, classPathB, sharedClassPath, inputsBeforeClassPath, nonObfuscatedClassesPatternA, nonObfuscatedClassesPatternB, nonObfuscatedMemberPatternA, nonObfuscatedMemberPatternB, false);
+	}
+
+	public ProjectConfig(List<Path> paths, List<Path> classPath, boolean inputsBeforeClassPath, String nonObfuscatedClassesPattern, String nonObfuscatedMemberPattern) {
+		this(paths, paths, classPath, classPath, Collections.emptyList(), inputsBeforeClassPath, nonObfuscatedClassesPattern, nonObfuscatedClassesPattern, nonObfuscatedMemberPattern, nonObfuscatedMemberPattern, true);
+	}
+
+	private ProjectConfig(List<Path> pathsA, List<Path> pathsB, List<Path> classPathA, List<Path> classPathB, List<Path> sharedClassPath, boolean inputsBeforeClassPath,
+			String nonObfuscatedClassesPatternA, String nonObfuscatedClassesPatternB, String nonObfuscatedMemberPatternA, String nonObfuscatedMemberPatternB, boolean isNesterProject) {
 		this.pathsA = pathsA;
 		this.pathsB = pathsB;
 		this.classPathA = classPathA;
@@ -38,6 +48,7 @@ public class ProjectConfig {
 		this.nonObfuscatedClassPatternB = nonObfuscatedClassesPatternB;
 		this.nonObfuscatedMemberPatternA = nonObfuscatedMemberPatternA;
 		this.nonObfuscatedMemberPatternB = nonObfuscatedMemberPatternB;
+		this.isNesterProject = isNesterProject;
 	}
 
 	public List<Path> getPathsA() {
@@ -80,8 +91,21 @@ public class ProjectConfig {
 		return nonObfuscatedMemberPatternB;
 	}
 
+	public boolean isNesterProject() {
+		return isNesterProject;
+	}
+
 	public boolean isValid() {
-		return !pathsA.isEmpty()
+		return isNesterProject
+			? (
+				!pathsA.isEmpty()
+				&& Collections.disjoint(pathsA, sharedClassPath)
+				&& Collections.disjoint(classPathA, pathsA)
+				&& Collections.disjoint(classPathA, sharedClassPath)
+				&& tryCompilePattern(nonObfuscatedClassPatternA)
+				&& tryCompilePattern(nonObfuscatedMemberPatternA)
+			) : (
+				!pathsA.isEmpty()
 				&& !pathsB.isEmpty()
 				&& Collections.disjoint(pathsA, pathsB)
 				&& Collections.disjoint(pathsA, sharedClassPath)
@@ -96,7 +120,8 @@ public class ProjectConfig {
 				&& tryCompilePattern(nonObfuscatedClassPatternA)
 				&& tryCompilePattern(nonObfuscatedClassPatternB)
 				&& tryCompilePattern(nonObfuscatedMemberPatternA)
-				&& tryCompilePattern(nonObfuscatedMemberPatternB);
+				&& tryCompilePattern(nonObfuscatedMemberPatternB)
+			);
 	}
 
 	private static boolean tryCompilePattern(String regex) {
@@ -121,6 +146,7 @@ public class ProjectConfig {
 		prefs.put(nonObfuscatedClassPatternBKey, nonObfuscatedClassPatternB);
 		prefs.put(nonObfuscatedMemberPatternAKey, nonObfuscatedMemberPatternA);
 		prefs.put(nonObfuscatedMemberPatternBKey, nonObfuscatedMemberPatternB);
+		prefs.putBoolean(isNesterProjectKey, isNesterProject);
 	}
 
 	private static final String pathsAKey = "paths-a";
@@ -133,6 +159,7 @@ public class ProjectConfig {
 	private static final String nonObfuscatedClassPatternBKey = "non-obfuscated-class-pattern-b";
 	private static final String nonObfuscatedMemberPatternAKey = "non-obfuscated-member-pattern-a";
 	private static final String nonObfuscatedMemberPatternBKey = "non-obfuscated-member-pattern-b";
+	private static final String isNesterProjectKey = "is-nester-project";
 
 	private final List<Path> pathsA;
 	private final List<Path> pathsB;
@@ -144,4 +171,5 @@ public class ProjectConfig {
 	private final String nonObfuscatedClassPatternB;
 	private final String nonObfuscatedMemberPatternA;
 	private final String nonObfuscatedMemberPatternB;
+	private final boolean isNesterProject;
 }

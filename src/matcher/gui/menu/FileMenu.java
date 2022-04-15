@@ -34,7 +34,7 @@ import matcher.config.ProjectConfig;
 import matcher.gui.Gui;
 import matcher.gui.Gui.SelectedFile;
 import matcher.gui.menu.LoadMappingsPane.MappingsLoadSettings;
-import matcher.gui.menu.LoadProjectPane.ProjectLoadSettings;
+import matcher.gui.menu.LoadMatcherProjectPane.ProjectLoadSettings;
 import matcher.gui.menu.SaveMappingsPane.MappingsSaveSettings;
 import matcher.mapping.Mappings;
 import matcher.serdes.MatchesIo;
@@ -120,7 +120,7 @@ public class FileMenu extends Menu {
 			dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
 			Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
-			NewProjectPane content = new NewProjectPane(config, dialog.getOwner(), okButton);
+			NewProjectTabPane content = new NewProjectTabPane(config, dialog.getOwner(), okButton);
 
 			dialog.getDialogPane().setContent(content);
 			dialog.setResultConverter(button -> button == ButtonType.OK ? content.createConfig() : null);
@@ -178,7 +178,7 @@ public class FileMenu extends Menu {
 
 		Node okButton = dialog.getDialogPane().lookupButton(ButtonType.OK);
 
-		LoadProjectPane content = new LoadProjectPane(Config.getInputDirs(), Config.getVerifyInputFiles(), dialog.getOwner(), okButton);
+		LoadMatcherProjectPane content = new LoadMatcherProjectPane(Config.getInputDirs(), Config.getVerifyInputFiles(), dialog.getOwner(), okButton);
 		dialog.getDialogPane().setContent(content);
 		dialog.setResultConverter(button -> button == ButtonType.OK ? content.createConfig() : null);
 

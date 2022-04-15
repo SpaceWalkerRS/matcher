@@ -25,8 +25,8 @@ import matcher.gui.Gui;
 import matcher.gui.GuiConstants;
 import matcher.gui.GuiUtil;
 
-public class LoadProjectPane extends VBox {
-	LoadProjectPane(List<Path> paths, boolean verifyFiles, Window window, Node okButton) {
+public class LoadMatcherProjectPane extends VBox {
+	LoadMatcherProjectPane(List<Path> paths, boolean verifyFiles, Window window, Node okButton) {
 		super(GuiConstants.padding);
 
 		this.paths = FXCollections.observableArrayList(paths);
