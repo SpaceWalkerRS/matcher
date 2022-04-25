@@ -190,7 +190,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 	private void announceClassSelectionChange(Matchable<?> oldSel, Matchable<?> newSel) {
 		if (oldSel == newSel) {
-			onMatchListRefresh();
+			onNestListRefresh();
 			return;
 		}
 
@@ -204,7 +204,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 	private void announceMethodSelectionChange(Matchable<?> oldSel, Matchable<?> newSel) {
 		if (oldSel == newSel) {
-			onMatchListRefresh();
+			onNestListRefresh();
 			return;
 		}
 

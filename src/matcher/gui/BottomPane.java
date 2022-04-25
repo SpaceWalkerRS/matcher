@@ -543,7 +543,12 @@ public class BottomPane extends StackPane implements IGuiComponent {
 
 		@Override
 		public void onMatchListRefresh() {
-			updateButtons();
+			updateMatchButtons();
+		}
+
+		@Override
+		public void onNestListRefresh() {
+			updateNestButtons();
 		}
 	}
 

@@ -23,4 +23,5 @@ public interface IGuiComponent {
 	default void onMethodVarSelect(MethodVarInstance arg) { }
 
 	default void onMatchListRefresh() { }
+	default void onNestListRefresh() { }
 }

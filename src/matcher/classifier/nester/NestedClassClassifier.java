@@ -18,7 +18,7 @@ import matcher.type.MethodInstance;
 public class NestedClassClassifier {
 
 	public static List<NestRankResult> rank(ClassInstance src, Collection<ClassInstance> dsts, NestRankResult selectedClassResult) {
-		if (src.hasMatch() || !src.isNestable()) {
+		if (!src.isReal()) {
 			return Collections.emptyList();
 		}
 
@@ -149,7 +149,7 @@ public class NestedClassClassifier {
 			FieldInstance field = fields[0];
 			ClassInstance type = field.getType();
 
-			if (type.isReal()) {
+			if (type.isReal() && !type.isArray()) {
 				return checkOrAddInner(clazz, type, 90, checkOnly);
 			}
 		}

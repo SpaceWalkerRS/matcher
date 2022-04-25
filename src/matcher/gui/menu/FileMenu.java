@@ -452,7 +452,7 @@ public class FileMenu extends Menu {
 	}
 
 	private void loadNesterMappings() {
-		SelectedFile res = Gui.requestFile("Select nester mappings file", gui.getScene().getWindow(), getNesterMappingsLoadExtensionFilters(), true);
+		SelectedFile res = Gui.requestFile("Select Nester mappings file", gui.getScene().getWindow(), getNesterMappingsLoadExtensionFilters(), true);
 		if (res == null) return;
 
 		NesterIo.read(res.path, gui.getNester());
@@ -464,7 +464,7 @@ public class FileMenu extends Menu {
 	}
 
 	private void saveNesterMappings() {
-		SelectedFile res = Gui.requestFile("Save nester mappings file", gui.getScene().getWindow(), Arrays.asList(new FileChooser.ExtensionFilter("Nester Mappings", "*.nest")), false);
+		SelectedFile res = Gui.requestFile("Save Nester mappings file", gui.getScene().getWindow(), Arrays.asList(new FileChooser.ExtensionFilter("Nester Mappings", "*.nest")), false);
 		if (res == null) return;
 
 		Path path = res.path;

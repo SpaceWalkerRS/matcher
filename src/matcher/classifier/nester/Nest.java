@@ -31,6 +31,11 @@ public class Nest {
 		return Objects.hash(subject, type);
 	}
 
+	@Override
+	public String toString() {
+		return subject.toString();
+	}
+
 	public Matchable<?> get() {
 		return subject;
 	}

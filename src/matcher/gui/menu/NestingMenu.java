@@ -78,7 +78,7 @@ public class NestingMenu extends Menu {
 	public void showNestingStatus() {
 		NestingStatus status = gui.getNester().getStatus(true);
 
-		gui.showAlert(AlertType.INFORMATION, "Matching status", "Current matching status",
+		gui.showAlert(AlertType.INFORMATION, "Nesting status", "Current nesting status",
 				String.format("Nested classes: %d / %d (%.2f%%)%n   Anonymous classes: %d / %d (%.2f%%)%n   Inner classes: %d / %d (%.2f%%)",
 						status.nestedClassCount, status.totalClassCount, (status.totalClassCount == 0 ? 0 : 100. * status.nestedClassCount / status.totalClassCount),
 						status.anonymousClassCount, status.nestedClassCount, (status.nestedClassCount == 0 ? 0 : 100. * status.anonymousClassCount / status.nestedClassCount),

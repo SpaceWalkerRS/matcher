@@ -177,9 +177,27 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 	}
 
 	private String getCellStyle(Matchable<?> item) {
-		boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+		if (Config.getProjectConfig().isNesterProject()) {
+			if (item.getKind() != MatchableKind.CLASS) {
+				return "-fx-text-fill: darkred;";
+			}
 
-		if (!isNesterProject && gui.isUseDiffColors()) {
+			ClassInstance clazz = (ClassInstance)item;
+			ClassInstance equiv = clazz.equiv;
+
+			if (equiv != null && equiv.isNestable()) {
+				if (equiv.hasNest()) {
+					return "-fx-text-fill: darkgreen;";
+				}
+				if (equiv.hasPotentialNest()) {
+					return "-fx-text-fill: chocolate;";
+				}
+
+				return "-fx-text-fill: darkred;";
+			}
+
+			return "-fx-text-fill: dimgray;";
+		} else if (gui.isUseDiffColors()) {
 			final float epsilon = 1e-5f;
 			float similarity = item.getSimilarity();
 
@@ -208,26 +226,6 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 				return String.format("-fx-text-fill: #%02x%02x%02x", (int) (red * 255), (int) (green * 255), (int) (blue * 255));
 			}
-		} else if (isNesterProject) {
-			if (item.getKind() != MatchableKind.CLASS) {
-				return "-fx-text-fill: darkred;";
-			}
-
-			ClassInstance clazz = (ClassInstance)item;
-			ClassInstance equiv = clazz.equiv;
-
-			if (equiv != null && equiv.isNestable()) {
-				if (equiv.hasNest()) {
-					return "-fx-text-fill: darkgreen;";
-				}
-				if (equiv.hasPotentialNest()) {
-					return "-fx-text-fill: chocolate;";
-				}
-
-				return "-fx-text-fill: darkred;";
-			}
-
-			return "-fx-text-fill: dimgray;";
 		} else {
 			if (!item.hasPotentialMatch()) {
 				return "-fx-text-fill: dimgray;";
@@ -567,9 +565,7 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 	@Override
 	public void onMatchChange(Set<MatchType> types) {
-		if (Config.getProjectConfig().isNesterProject()) {
-			updateLists(true, false);
-		} else if (gui.getSortKey() == SortKey.MatchStatus || gui.getSortKey() == SortKey.Similarity) {
+		if (gui.getSortKey() == SortKey.MatchStatus || gui.getSortKey() == SortKey.Similarity) {
 			updateLists(false, true);
 		} else if (types.contains(MatchType.Class)) {
 			updateLists(false, false);
