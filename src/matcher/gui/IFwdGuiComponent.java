@@ -45,6 +45,13 @@ public interface IFwdGuiComponent extends IGuiComponent {
 	}
 
 	@Override
+	default void onNestChange() {
+		for (IGuiComponent c : getComponents()) {
+			c.onNestChange();
+		}
+	}
+
+	@Override
 	default void onClassSelect(ClassInstance cls) {
 		for (IGuiComponent c : getComponents()) {
 			c.onClassSelect(cls);

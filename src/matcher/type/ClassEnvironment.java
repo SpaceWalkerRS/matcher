@@ -53,20 +53,36 @@ public class ClassEnvironment implements ClassEnv {
 		nonObfuscatedMemberPatternA = config.getNonObfuscatedMemberPatternA().isEmpty() ? null : Pattern.compile(config.getNonObfuscatedMemberPatternA());
 		nonObfuscatedMemberPatternB = config.getNonObfuscatedMemberPatternB().isEmpty() ? null : Pattern.compile(config.getNonObfuscatedMemberPatternB());
 
+		boolean isNesterProject = config.isNesterProject();
+
 		try {
 			for (int i = 0; i < 2; i++) {
 				if ((i == 0) != inputsBeforeClassPath) {
 					// class path indexing
 					initClassPath(config.getSharedClassPath(), inputsBeforeClassPath);
-					CompletableFuture.allOf(
-							CompletableFuture.runAsync(() -> extractorA.processClassPath(config.getClassPathA(), inputsBeforeClassPath)),
-							CompletableFuture.runAsync(() -> extractorB.processClassPath(config.getClassPathB(), inputsBeforeClassPath))).get();
+					if (isNesterProject) {
+						CompletableFuture.runAsync(() -> {
+							extractorA.processClassPath(config.getClassPathA(), inputsBeforeClassPath);
+							extractorB.processClassPath(config.getClassPathB(), inputsBeforeClassPath);
+						}).get();
+					} else {
+						CompletableFuture.allOf(
+								CompletableFuture.runAsync(() -> extractorA.processClassPath(config.getClassPathA(), inputsBeforeClassPath)),
+								CompletableFuture.runAsync(() -> extractorB.processClassPath(config.getClassPathB(), inputsBeforeClassPath))).get();
+					}
 					progress += cpInitCost;
 				} else {
 					// async class reading
-					CompletableFuture.allOf(
-							CompletableFuture.runAsync(() -> extractorA.processInputs(config.getPathsA(), nonObfuscatedClassPatternA)),
-							CompletableFuture.runAsync(() -> extractorB.processInputs(config.getPathsB(), nonObfuscatedClassPatternB))).get();
+					if (isNesterProject) {
+						CompletableFuture.runAsync(() -> {
+							extractorA.processInputs(config.getPathsA(), nonObfuscatedClassPatternA);
+							extractorB.processInputs(config.getPathsB(), nonObfuscatedClassPatternB);
+						}).get();
+					} else {
+						CompletableFuture.allOf(
+								CompletableFuture.runAsync(() -> extractorA.processInputs(config.getPathsA(), nonObfuscatedClassPatternA)),
+								CompletableFuture.runAsync(() -> extractorB.processInputs(config.getPathsB(), nonObfuscatedClassPatternB))).get();
+					}
 					progress += classReadCost;
 				}
 
@@ -592,6 +608,7 @@ public class ClassEnvironment implements ClassEnv {
 	static void addSuperClass(ClassInstance cls, String name) {
 		cls.superClass = cls.getEnv().getCreateClassInstance(ClassInstance.getId(name));
 		cls.superClass.childClasses.add(cls);
+		cls.superClass.markNotAnonymous();
 	}
 
 	@Override

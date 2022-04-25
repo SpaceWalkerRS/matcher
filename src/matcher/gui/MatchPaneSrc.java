@@ -18,11 +18,13 @@ import javafx.scene.control.TreeView;
 
 import matcher.NameType;
 import matcher.Util;
+import matcher.config.Config;
 import matcher.gui.Gui.SortKey;
 import matcher.type.ClassInstance;
 import matcher.type.FieldInstance;
 import matcher.type.MatchType;
 import matcher.type.Matchable;
+import matcher.type.MatchableKind;
 import matcher.type.MemberInstance;
 import matcher.type.MethodInstance;
 import matcher.type.MethodVarInstance;
@@ -37,12 +39,11 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 	private void init() {
 		// lists
 
-		SplitPane verticalPane = new SplitPane();
-		getItems().add(verticalPane);
+		getItems().add(listPane);
 
 		// class list
 
-		verticalPane.getItems().add(createClassList());
+		listPane.getItems().add(createClassList());
 
 		// member list
 
@@ -71,7 +72,7 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 			}
 		});
 
-		verticalPane.getItems().add(memberList);
+		listPane.getItems().add(memberList);
 
 		// method var list
 
@@ -82,7 +83,7 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 			onMethodVarSelect(newValue);
 		});
 
-		verticalPane.getItems().add(varList);
+		listPane.getItems().add(varList);
 
 		// content
 
@@ -92,10 +93,10 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 		// positioning
 
-		verticalPane.setOrientation(Orientation.VERTICAL);
-		verticalPane.setDividerPositions(0.65, 0.9);
+		listPane.setOrientation(Orientation.VERTICAL);
+		listPane.setDividerPositions(0.65, 0.9);
 
-		SplitPane.setResizableWithParent(verticalPane, false);
+		SplitPane.setResizableWithParent(listPane, false);
 		setDividerPosition(0, 0.25);
 	}
 
@@ -176,7 +177,9 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 	}
 
 	private String getCellStyle(Matchable<?> item) {
-		if (gui.isUseDiffColors()) {
+		boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+
+		if (!isNesterProject && gui.isUseDiffColors()) {
 			final float epsilon = 1e-5f;
 			float similarity = item.getSimilarity();
 
@@ -205,6 +208,26 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 				return String.format("-fx-text-fill: #%02x%02x%02x", (int) (red * 255), (int) (green * 255), (int) (blue * 255));
 			}
+		} else if (isNesterProject) {
+			if (item.getKind() != MatchableKind.CLASS) {
+				return "-fx-text-fill: darkred;";
+			}
+
+			ClassInstance clazz = (ClassInstance)item;
+			ClassInstance equiv = clazz.equiv;
+
+			if (equiv != null && equiv.isNestable()) {
+				if (equiv.hasNest()) {
+					return "-fx-text-fill: darkgreen;";
+				}
+				if (equiv.hasPotentialNest()) {
+					return "-fx-text-fill: chocolate;";
+				}
+
+				return "-fx-text-fill: darkred;";
+			}
+
+			return "-fx-text-fill: dimgray;";
 		} else {
 			if (!item.hasPotentialMatch()) {
 				return "-fx-text-fill: dimgray;";
@@ -348,7 +371,6 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 		List<ClassInstance> classes = updateContents ? gui.getEnv().getDisplayClassesA(!gui.isShowNonInputs()) : null;
 
-
 		if (useClassTree) {
 			updateClassTree(classes, clsComparator, selClass);
 		} else {
@@ -366,6 +388,20 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 			memberList.getItems().sort(memberComparator);
 			memberList.getSelectionModel().select(selMember);
 		}
+
+		boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+		boolean hasMemberList = listPane.getItems().contains(memberList);
+
+		if (isNesterProject && hasMemberList) {
+			listPane.getItems().remove(memberList);
+			listPane.getItems().remove(varList);
+		} else
+		if (!isNesterProject && !hasMemberList) {
+			listPane.getItems().add(memberList);
+			listPane.getItems().add(varList);
+		}
+
+		listPane.setDividerPositions(0.65, 0.9);
 
 		suppressChangeEvents = false;
 	}
@@ -459,7 +495,11 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 		case MappedName:
 			return Comparator.comparing(this::getMappedName, clsNameComparator);
 		case MatchStatus:
-			return ((Comparator<ClassInstance>) matchStatusComparator).thenComparing(this::getName, clsNameComparator);
+			if (Config.getProjectConfig().isNesterProject()) {
+				return nestStatusComparator.thenComparing(this::getName, clsNameComparator);
+			} else {
+				return ((Comparator<ClassInstance>) matchStatusComparator).thenComparing(this::getName, clsNameComparator);
+			}
 		case Similarity:
 			return ((Comparator<ClassInstance>) similarityComparator).thenComparing(this::getName, clsNameComparator);
 		}
@@ -527,7 +567,9 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 	@Override
 	public void onMatchChange(Set<MatchType> types) {
-		if (gui.getSortKey() == SortKey.MatchStatus || gui.getSortKey() == SortKey.Similarity) {
+		if (Config.getProjectConfig().isNesterProject()) {
+			updateLists(true, false);
+		} else if (gui.getSortKey() == SortKey.MatchStatus || gui.getSortKey() == SortKey.Similarity) {
 			updateLists(false, true);
 		} else if (types.contains(MatchType.Class)) {
 			updateLists(false, false);
@@ -544,6 +586,14 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 		}
 
 		IFwdGuiComponent.super.onMatchChange(types);
+	}
+
+	@Override
+	public void onNestChange() {
+		updateLists(false, true);
+		refreshClassList();
+
+		IFwdGuiComponent.super.onNestChange();
 	}
 
 	@Override
@@ -611,8 +661,37 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 
 	private static final Comparator<String> clsNameComparator = Util::compareNatural;
 
+	private static final Comparator<ClassInstance> nestStatusComparator = (a, b) -> {
+		ClassInstance aEquiv = a.equiv;
+		ClassInstance bEquiv = b.equiv;
+
+		boolean aNestable = aEquiv.isNestable();
+		boolean bNestable = bEquiv.isNestable();
+
+		if (aNestable != bNestable) {
+			return aNestable ? -1 : 1;
+		} else if (!aNestable) {
+			return 0;
+		}
+
+		boolean aHasNest = aEquiv.hasNest();
+		boolean bHasNest = bEquiv.hasNest();
+
+		if (aHasNest != bHasNest) {
+			return aHasNest ? -1 : 1;
+		} else if (aHasNest) {
+			return 0;
+		}
+
+		int aPotentialScore = aEquiv.getHighestPotentialScore();
+		int bPotentialScore = bEquiv.getHighestPotentialScore();
+
+		return Integer.compare(bPotentialScore, aPotentialScore);
+	};
+
 	private final Gui gui;
 	private final Collection<IGuiComponent> components = new ArrayList<>();
+	private final SplitPane listPane = new SplitPane();
 	private boolean useClassTree;
 	private ListView<ClassInstance> classList;
 	private TreeView<Object> classTree;

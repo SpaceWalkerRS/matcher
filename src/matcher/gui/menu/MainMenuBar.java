@@ -3,6 +3,7 @@ package matcher.gui.menu;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 
+import matcher.config.Config;
 import matcher.gui.Gui;
 import matcher.gui.IGuiComponent;
 
@@ -16,6 +17,7 @@ public class MainMenuBar extends MenuBar implements IGuiComponent {
 	private void init() {
 		fileMenu = addMenu(new FileMenu(gui));
 		matchingMenu = addMenu(new MatchingMenu(gui));
+		nestingMenu = addMenu(new NestingMenu(gui));
 		mappingMenu = addMenu(new MappingMenu(gui));
 		uidMenu = addMenu(new UidMenu(gui));
 		viewMenu = addMenu(new ViewMenu(gui));
@@ -29,6 +31,14 @@ public class MainMenuBar extends MenuBar implements IGuiComponent {
 		}
 
 		return menu;
+	}
+
+	@Override
+	public void onProjectChange() {
+		boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+
+		matchingMenu.setDisable(isNesterProject);
+		nestingMenu.setDisable(!isNesterProject);
 	}
 
 	public FileMenu getFileMenu() {
@@ -55,6 +65,7 @@ public class MainMenuBar extends MenuBar implements IGuiComponent {
 
 	private FileMenu fileMenu;
 	private MatchingMenu matchingMenu;
+	private NestingMenu nestingMenu;
 	private MappingMenu mappingMenu;
 	private UidMenu uidMenu;
 	private ViewMenu viewMenu;

@@ -33,11 +33,13 @@ import matcher.config.Config;
 import matcher.config.ProjectConfig;
 import matcher.gui.Gui;
 import matcher.gui.Gui.SelectedFile;
+import matcher.gui.IGuiComponent;
 import matcher.gui.menu.LoadMappingsPane.MappingsLoadSettings;
 import matcher.gui.menu.LoadMatcherProjectPane.ProjectLoadSettings;
 import matcher.gui.menu.SaveMappingsPane.MappingsSaveSettings;
 import matcher.mapping.Mappings;
 import matcher.serdes.MatchesIo;
+import matcher.serdes.NesterIo;
 import matcher.type.ClassEnvironment;
 import matcher.type.MatchType;
 
@@ -55,9 +57,9 @@ public class FileMenu extends Menu {
 		getItems().add(menuItem);
 		menuItem.setOnAction(event -> newProject());
 
-		menuItem = new MenuItem("Load project");
+		menuItem = new MenuItem("Load Matcher project");
 		getItems().add(menuItem);
-		menuItem.setOnAction(event -> loadProject());
+		menuItem.setOnAction(event -> loadMatcherProject());
 
 		getItems().add(new SeparatorMenuItem());
 
@@ -90,19 +92,40 @@ public class FileMenu extends Menu {
 
 		getItems().add(new SeparatorMenuItem());
 
-		menuItem = new MenuItem("Load matches");
-		getItems().add(menuItem);
-		menuItem.setOnAction(event -> loadMatches());
+		MenuItem loadMatches = new MenuItem("Load matches");
+		getItems().add(loadMatches);
+		loadMatches.setOnAction(event -> loadMatches());
 
-		menuItem = new MenuItem("Save matches");
-		getItems().add(menuItem);
-		menuItem.setOnAction(event -> saveMatches());
+		MenuItem saveMatches = new MenuItem("Save matches");
+		getItems().add(saveMatches);
+		saveMatches.setOnAction(event -> saveMatches());
+
+		MenuItem loadNesterMappings = new MenuItem("Load Nester mappings");
+		getItems().add(loadNesterMappings);
+		loadNesterMappings.setOnAction(event -> loadNesterMappings());
+
+		MenuItem saveNesterMappings = new MenuItem("Save Nester mappings");
+		getItems().add(saveNesterMappings);
+		saveNesterMappings.setOnAction(event -> saveNesterMappings());
 
 		getItems().add(new SeparatorMenuItem());
 
 		menuItem = new MenuItem("Exit");
 		getItems().add(menuItem);
 		menuItem.setOnAction(event -> Platform.exit());
+
+		gui.addListeningComponent(new IGuiComponent() {
+
+			@Override
+			public void onProjectChange() {
+				boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+
+				loadMatches.setDisable(isNesterProject);
+				saveMatches.setDisable(isNesterProject);
+				loadNesterMappings.setDisable(!isNesterProject);
+				saveNesterMappings.setDisable(!isNesterProject);
+			}
+		});
 	}
 
 	private void newProject() {
@@ -141,7 +164,11 @@ public class FileMenu extends Menu {
 
 		gui.runProgressTask("Initializing files...",
 				progressReceiver -> {
-					gui.getMatcher().init(newConfig, progressReceiver);
+					if (newConfig.isNesterProject()) {
+						gui.getNester().init(newConfig, progressReceiver);
+					} else {
+						gui.getMatcher().init(newConfig, progressReceiver);
+					}
 					ret.complete(true);
 				},
 				() -> gui.onProjectChange(),
@@ -153,7 +180,7 @@ public class FileMenu extends Menu {
 		return ret;
 	}
 
-	private void loadProject() {
+	private void loadMatcherProject() {
 		SelectedFile res = Gui.requestFile("Select matches file", gui.getScene().getWindow(), getMatchesLoadExtensionFilters(), true);
 		if (res == null) return;
 
@@ -171,7 +198,7 @@ public class FileMenu extends Menu {
 
 	public ProjectLoadSettings requestProjectLoadSettings() {
 		Dialog<ProjectLoadSettings> dialog = new Dialog<>();
-		//dialog.initModality(Modality.APPLICATION_MODAL);
+
 		dialog.setResizable(true);
 		dialog.setTitle("Project paths");
 		dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
@@ -416,6 +443,45 @@ public class FileMenu extends Menu {
 
 			if (!MatchesIo.write(gui.getMatcher(), path)) {
 				gui.showAlert(AlertType.WARNING, "Matches save warning", "No matches to save", "There are currently no matched classes, so saving was aborted.");
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+	}
+
+	private void loadNesterMappings() {
+		SelectedFile res = Gui.requestFile("Select nester mappings file", gui.getScene().getWindow(), getNesterMappingsLoadExtensionFilters(), true);
+		if (res == null) return;
+
+		NesterIo.read(res.path, gui.getNester());
+		gui.onNestChange();
+	}
+
+	private static List<ExtensionFilter> getNesterMappingsLoadExtensionFilters() {
+		return Arrays.asList(new FileChooser.ExtensionFilter("Nester Mappings", "*.nest"));
+	}
+
+	private void saveNesterMappings() {
+		SelectedFile res = Gui.requestFile("Save nester mappings file", gui.getScene().getWindow(), Arrays.asList(new FileChooser.ExtensionFilter("Nester Mappings", "*.nest")), false);
+		if (res == null) return;
+
+		Path path = res.path;
+
+		if (!path.getFileName().toString().toLowerCase(Locale.ENGLISH).endsWith(".nest")) {
+			path = path.resolveSibling(path.getFileName().toString()+".nest");
+		}
+
+		try {
+			if (Files.isDirectory(path)) {
+				gui.showAlert(AlertType.ERROR, "Save error", "Invalid file selection", "The selected file is a directory.");
+			} else if (Files.exists(path)) {
+				Files.deleteIfExists(path);
+			}
+
+			if (!NesterIo.write(gui.getNester(), path)) {
+				gui.showAlert(AlertType.WARNING, "Nester mappings save warning", "No Nester mappings to save", "There are currently no nested classes, so saving was aborted.");
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block

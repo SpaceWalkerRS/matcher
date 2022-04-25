@@ -45,6 +45,15 @@ public class SourcecodeTab extends WebViewTab {
 	}
 
 	@Override
+	public void onNestChange() {
+		ClassInstance cls = selectionProvider.getSelectedClass();
+
+		if (cls != null) {
+			update(cls, true);
+		}
+	}
+
+	@Override
 	public void onViewChange() {
 		ClassInstance cls = selectionProvider.getSelectedClass();
 

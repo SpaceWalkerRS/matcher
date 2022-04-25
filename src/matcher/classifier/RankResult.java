@@ -2,7 +2,9 @@ package matcher.classifier;
 
 import java.util.List;
 
-public class RankResult<T> {
+import matcher.type.Matchable;
+
+public class RankResult<T extends Matchable<T>> implements IRankResult {
 	public RankResult(T subject, double score, List<ClassifierResult<T>> results) {
 		this.subject = subject;
 		this.score = score;

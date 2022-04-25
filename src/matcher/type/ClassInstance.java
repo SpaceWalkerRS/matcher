@@ -25,6 +25,10 @@ import matcher.Util;
 import matcher.bcremap.AsmClassRemapper;
 import matcher.bcremap.AsmRemapper;
 import matcher.classifier.ClassifierUtil;
+import matcher.classifier.nester.Nest;
+import matcher.classifier.nester.NestRankResult;
+import matcher.classifier.nester.NestType;
+import matcher.classifier.nester.NestedClassClassifier;
 import matcher.type.Signature.ClassSignature;
 
 public final class ClassInstance implements Matchable<ClassInstance> {
@@ -471,6 +475,26 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		}
 
 		return ret;
+	}
+
+	public boolean isPublic() {
+		return (getAccess() & Opcodes.ACC_PUBLIC) != 0;
+	}
+
+	public boolean isProtected() {
+		return (getAccess() & Opcodes.ACC_PROTECTED) != 0;
+	}
+
+	public boolean isPrivate() {
+		return (getAccess() & Opcodes.ACC_PRIVATE) != 0;
+	}
+
+	public boolean isPackagePrivate() {
+		return !isPublic() && !isProtected() && !isPrivate();
+	}
+
+	public boolean isStatic() {
+		return (getAccess() & Opcodes.ACC_STATIC) != 0;
 	}
 
 	public boolean isInterface() {
@@ -1080,6 +1104,272 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return writer.toByteArray();
 	}
 
+	public ClassInstance equiv() {
+		return equiv == null ? equiv = env.getOther().getClsById(id) : equiv;
+	}
+
+	public boolean hasPotentialNest() {
+		if (!isNestable()) {
+			return false;
+		}
+		if (hasNest()) {
+			return true;
+		}
+
+		return getHighestPotentialScore() > 0;
+	}
+
+	public int getHighestPotentialScore() {
+		if (potentialScoreDirty) {
+			findHighestPotentialScore();
+			potentialScoreDirty = false;
+		}
+
+		return potentialScore;
+	}
+
+	public void markPotentialScoreDirty() {
+		potentialScoreDirty = true;
+		hasStaticMembers = null;
+
+		for (ClassInstance nestingClass : nestingClasses) {
+			nestingClass.markPotentialScoreDirty();
+		}
+	}
+
+	private void findHighestPotentialScore() {
+		potentialScore = 0;
+
+		if (!isNestable()) {
+			return;
+		}
+
+		List<NestRankResult> results = NestedClassClassifier.rank(this, env.getClasses(), null);
+
+		if (results.isEmpty()) {
+			return;
+		}
+
+		results.sort(null);
+
+		int index = results.size() - 1;
+		NestRankResult best = results.get(index);
+
+		while (best.isDummy() && index-- > 0) {
+			best = results.get(index);
+		}
+
+		potentialScore = best.getScore();
+	}
+
+	public boolean isNestable() {
+		return nestable && isReal() && outerClass == null;
+	}
+
+	public void setNestable(boolean nestable) {
+		this.nestable = nestable;
+
+		if (!this.nestable) {
+			setNest(null);
+		}
+
+		markPotentialScoreDirty();
+	}
+
+	public boolean canNestInto(Matchable<?> candidate) {
+		if (candidate instanceof ClassInstance) {
+			return canNestInto((ClassInstance)candidate);
+		}
+		if (candidate instanceof MethodInstance) {
+			return canNestInto(((MethodInstance)candidate).cls);
+		}
+
+		return false;
+	}
+
+	public boolean canNestInto(ClassInstance clazz) {
+		return this != clazz && !encloses(clazz) && !getChildClasses().contains(clazz);
+	}
+
+	public boolean hasNest() {
+		return nest != null;
+	}
+
+	public Nest getNest() {
+		return nest;
+	}
+
+	public void setNest(Matchable<?> m, NestType type) {
+		setNest((m == null || type == null) ? null : new Nest(m, type));
+	}
+
+	public void setNest(Nest n) {
+		if (isNestable()) {
+			if (n != null) {
+				ClassInstance enclClass = n.getEnclosingClass();
+
+				if (encloses(enclClass)) {
+					return;
+				}
+			}
+
+			if (nest != null) {
+				ClassInstance enclClass = nest.getEnclosingClass();
+
+				enclClass.nestingClasses.remove(this);
+				enclClass.markPotentialScoreDirty();
+			}
+
+			nest = n;
+
+			if (nest != null) {
+				ClassInstance enclClass = nest.getEnclosingClass();
+
+				enclClass.nestingClasses.add(this);
+				enclClass.markPotentialScoreDirty();
+			}
+
+			markPotentialScoreDirty();
+		}
+	}
+
+	public String getSimpleName() {
+		return simpleName;
+	}
+
+	public void setSimpleName(String name) {
+		simpleName = name;
+	}
+
+	public boolean encloses(Matchable<?> m) {
+		for (Matchable<?> p = m.getOwner(); p != null; p = p.getOwner()) {
+			if (this == p) {
+				return true;
+			}
+		}
+		if (m instanceof ClassInstance) {
+			Nest nest = ((ClassInstance)m).getNest();
+
+			if (nest != null) {
+				m = nest.get();
+
+				if (m == this || encloses(m)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	public boolean canBeAnonymous() {
+		return canBeAnonymous && !isInterface() && !hasStaticMembers();
+	}
+
+	public void markNotAnonymous() {
+		canBeAnonymous = false;
+	}
+
+	public boolean canBeInner() {
+		return !isStatic() || !hasStaticMembers();
+	}
+
+	public boolean hasStaticMembers() {
+		if (hasStaticMembers == null) {
+			for (ClassInstance clazz : nestingClasses) {
+				if (clazz.isStatic()) {
+					return hasStaticMembers = true;
+				}
+			}
+			for (FieldInstance field : fields) {
+				if (field.isStatic() && !field.isSynthetic() && !field.isFinal()) {
+					return hasStaticMembers = true;
+				}
+			}
+			for (MethodInstance method : methods) {
+				if (method.isStatic() && !method.isSynthetic()) {
+					return hasStaticMembers = true;
+				}
+			}
+
+			hasStaticMembers = false;
+		}
+
+		return hasStaticMembers;
+	}
+
+	public boolean hasSyntheticMembers() {
+		return hasSyntheticFields() || hasSyntheticMethods();
+	}
+
+	public boolean hasSyntheticFields() {
+		return syntheticFieldCount > 0;
+	}
+
+	public boolean hasSyntheticMethods() {
+		return syntheticMethodCount > 0;
+	}
+
+	public FieldInstance[] getSyntheticFields() {
+		if (syntheticFields == null) {
+			syntheticFields = new FieldInstance[syntheticFieldCount];
+
+			int index = 0;
+			for (FieldInstance field : fields) {
+				if (field.isSynthetic()) {
+					syntheticFields[index++] = field;
+				}
+			}
+		}
+
+		return syntheticFields;
+	}
+
+	public MethodInstance[] getDeclaredMethods() {
+		if (declaredMethods == null) {
+			declaredMethods = new MethodInstance[declaredMethodCount];
+
+			int index = 0;
+			for (MethodInstance method : methods) {
+				if (!method.isSynthetic() && !method.getName().equals("<init>") && !method.getName().equals("<clinit>")) {
+					declaredMethods[index++] = method;
+				}
+			}
+		}
+
+		return declaredMethods;
+	}
+
+	public MethodInstance[] getInstanceConstructors() {
+		if (instanceConstructors == null) {
+			instanceConstructors = new MethodInstance[instanceConstructorCount];
+
+			int index = 0;
+			for (MethodInstance method : methods) {
+				if (!method.isSynthetic() && method.getName().equals("<init>")) {
+					instanceConstructors[index++] = method;
+				}
+			}
+		}
+
+		return instanceConstructors;
+	}
+
+	public MethodInstance[] getSyntheticMethods() {
+		if (syntheticMethods == null) {
+			syntheticMethods = new MethodInstance[syntheticMethodCount];
+
+			int index = 0;
+			for (MethodInstance method : methods) {
+				if (method.isSynthetic() && !method.isBridge()) {
+					syntheticMethods[index++] = method;
+				}
+			}
+		}
+
+		return syntheticMethods;
+	}
+
 	@Override
 	public String toString() {
 		return getDisplayName(NameType.PLAIN, true);
@@ -1091,6 +1381,16 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		methodIdx.put(method.id, method);
 		methods = Arrays.copyOf(methods, methods.length + 1);
 		methods[methods.length - 1] = method;
+
+		if (method.isSynthetic()) {
+			if (!method.isBridge()) {
+				syntheticMethodCount++;
+			}
+		} else if (method.getName().equals("<init>")) {
+			instanceConstructorCount++;
+		} else if (!method.getName().equals("<clinit>")) {
+			declaredMethodCount++;
+		}
 	}
 
 	void addField(FieldInstance field) {
@@ -1099,6 +1399,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		fieldIdx.put(field.id, field);
 		fields = Arrays.copyOf(fields, fields.length + 1);
 		fields[fields.length - 1] = field;
+
+		if (field.isSynthetic()) {
+			syntheticFieldCount++;
+		}
 	}
 
 	public static String getId(String name) {
@@ -1200,4 +1504,27 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 	private boolean matchable = true;
 	private ClassInstance matchedClass;
+
+	public ClassInstance equiv; // link to equivalent class in other local env
+
+	private int syntheticFieldCount;
+	private int declaredMethodCount;
+	private int instanceConstructorCount;
+	private int syntheticMethodCount;
+
+	private int potentialScore;
+	private boolean potentialScoreDirty = true;
+
+	private boolean nestable = true;
+	private Nest nest;
+	private String simpleName;
+	private boolean canBeAnonymous = true;
+
+	private final Set<ClassInstance> nestingClasses = Util.newIdentityHashSet();
+
+	private Boolean hasStaticMembers;
+	private FieldInstance[] syntheticFields;
+	private MethodInstance[] declaredMethods;
+	private MethodInstance[] instanceConstructors;
+	private MethodInstance[] syntheticMethods;
 }

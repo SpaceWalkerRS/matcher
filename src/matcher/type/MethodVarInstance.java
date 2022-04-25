@@ -20,6 +20,14 @@ public final class MethodVarInstance implements Matchable<MethodVarInstance> {
 		this.startOpIdx = startOpIdx;
 		this.origName = origName;
 		this.nameObfuscated = nameObfuscated;
+
+		if (!this.method.isSynthetic()) {
+			if (this.type.isArray()) {
+				this.type.elementClass.markNotAnonymous();
+			} else {
+				this.type.markNotAnonymous();
+			}
+		}
 	}
 
 	@Override

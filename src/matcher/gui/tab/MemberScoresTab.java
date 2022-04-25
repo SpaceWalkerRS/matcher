@@ -1,5 +1,7 @@
 package matcher.gui.tab;
 
+import java.util.List;
+
 import javafx.scene.control.Tab;
 import javafx.scene.control.TableView;
 import matcher.classifier.ClassifierResult;
@@ -8,6 +10,7 @@ import matcher.gui.IGuiComponent;
 import matcher.gui.ISelectionProvider;
 import matcher.type.FieldInstance;
 import matcher.type.MatchType;
+import matcher.type.Matchable;
 import matcher.type.MemberInstance;
 import matcher.type.MethodInstance;
 
@@ -36,13 +39,13 @@ public class MemberScoresTab extends Tab implements IGuiComponent {
 
 	@SuppressWarnings("unchecked")
 	private void update() {
-		RankResult<MemberInstance<?>> result = (RankResult<MemberInstance<?>>) selectionProvider.getSelectedRankResult(MatchType.Method);
-		if (result == null) result = (RankResult<MemberInstance<?>>) selectionProvider.getSelectedRankResult(MatchType.Field);
+		RankResult<? extends Matchable<?>> result = selectionProvider.getSelectedRankResult(MatchType.Method);
+		if (result == null) result = selectionProvider.getSelectedRankResult(MatchType.Field);
 
 		if (result == null) {
 			table.getItems().clear();
 		} else {
-			table.getItems().setAll(result.getResults());
+			table.getItems().setAll((List<ClassifierResult<MemberInstance<?>>>)(Object)result.getResults());
 		}
 	}
 

@@ -50,6 +50,12 @@ public final class MethodInstance extends MemberInstance<MethodInstance> {
 
 		classRefs.add(retType);
 		retType.methodTypeRefs.add(this);
+
+		if (this.retType.isArray()) {
+			this.retType.elementClass.markNotAnonymous();
+		} else {
+			this.retType.markNotAnonymous();
+		}
 	}
 
 	private static int approximateAccess(boolean isStatic) {

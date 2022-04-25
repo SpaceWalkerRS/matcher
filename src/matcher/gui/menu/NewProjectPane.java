@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import javafx.beans.InvalidationListener;
@@ -122,6 +123,11 @@ public class NewProjectPane extends GridPane {
 			}
 		};
 		InvalidationListener invalidationListener = change -> {
+			if (selected) {
+				okButton.setDisable(!createConfig().isValid());
+			}
+		};
+		selectionListener = selected -> {
 			if (selected) {
 				okButton.setDisable(!createConfig().isValid());
 			}
@@ -333,6 +339,10 @@ public class NewProjectPane extends GridPane {
 
 	public void setSelected(boolean selected) {
 		this.selected = selected;
+
+		if (this.selectionListener != null) {
+			this.selectionListener.accept(this.selected);
+		}
 	}
 
 	public ProjectConfig createConfig() {
@@ -372,4 +382,5 @@ public class NewProjectPane extends GridPane {
 	private final TextField nonObfuscatedMemberPatternB;
 
 	private boolean selected;
+	private Consumer<Boolean> selectionListener;
 }

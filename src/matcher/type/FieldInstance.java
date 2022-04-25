@@ -39,6 +39,14 @@ public final class FieldInstance extends MemberInstance<FieldInstance> {
 		}
 
 		type.fieldTypeRefs.add(this);
+
+		if (!isSynthetic()) {
+			if (this.type.isArray()) {
+				this.type.elementClass.markNotAnonymous();
+			} else {
+				this.type.markNotAnonymous();
+			}
+		}
 	}
 
 	@Override

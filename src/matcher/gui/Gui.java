@@ -40,6 +40,7 @@ import javafx.stage.Window;
 
 import matcher.Matcher;
 import matcher.NameType;
+import matcher.Nester;
 import matcher.gui.menu.MainMenuBar;
 import matcher.srcprocess.BuiltinDecompiler;
 import matcher.type.ClassEnvironment;
@@ -52,6 +53,7 @@ public class Gui extends Application {
 
 		env = new ClassEnvironment();
 		matcher = new Matcher(env);
+		nester = new Nester(env);
 
 		GridPane border = new GridPane();
 
@@ -105,6 +107,10 @@ public class Gui extends Application {
 
 	public Matcher getMatcher() {
 		return matcher;
+	}
+
+	public Nester getNester() {
+		return nester;
 	}
 
 	public Scene getScene() {
@@ -246,6 +252,12 @@ public class Gui extends Application {
 	public void onMatchChange(Set<MatchType> types) {
 		for (IGuiComponent c : components) {
 			c.onMatchChange(types);
+		}
+	}
+
+	public void onNestChange() {
+		for (IGuiComponent c : components) {
+			c.onNestChange();
 		}
 	}
 
@@ -414,6 +426,7 @@ public class Gui extends Application {
 
 	private ClassEnvironment env;
 	private Matcher matcher;
+	private Nester nester;
 
 	private Scene scene;
 	private final Collection<IGuiComponent> components = new ArrayList<>();

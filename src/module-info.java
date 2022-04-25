@@ -7,6 +7,7 @@ module matcher {
 	exports matcher.gui.menu;
 	exports matcher.mapping;
 	exports matcher.classifier;
+	exports matcher.classifier.nester;
 	exports matcher;
 	exports matcher.bcremap;
 	exports matcher.serdes;

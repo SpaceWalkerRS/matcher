@@ -15,6 +15,7 @@ public interface IGuiComponent {
 
 	default void onMappingChange() { }
 	default void onMatchChange(Set<MatchType> types) { }
+	default void onNestChange() { }
 
 	default void onClassSelect(ClassInstance cls) { }
 	default void onMethodSelect(MethodInstance method) { }

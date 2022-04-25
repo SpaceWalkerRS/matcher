@@ -16,6 +16,7 @@ import matcher.classifier.ClassifierLevel;
 import matcher.classifier.FieldClassifier;
 import matcher.classifier.MethodClassifier;
 import matcher.classifier.RankResult;
+import matcher.config.Config;
 import matcher.type.ClassInstance;
 import matcher.type.FieldInstance;
 import matcher.type.MatchType;
@@ -37,7 +38,6 @@ public class BottomPane extends StackPane implements IGuiComponent {
 	private void init() {
 		setPadding(new Insets(GuiConstants.padding));
 
-		HBox center = new HBox(GuiConstants.padding);
 		getChildren().add(center);
 		StackPane.setAlignment(center, Pos.CENTER);
 		center.setAlignment(Pos.CENTER);
@@ -60,7 +60,18 @@ public class BottomPane extends StackPane implements IGuiComponent {
 
 		center.getChildren().add(matchPerfectMembersButton);
 
-		HBox right = new HBox(GuiConstants.padding);
+		addAnonymousClassButton.setText("add anonymous class");
+		addAnonymousClassButton.setOnAction(event -> addAnonymousClass());
+		addAnonymousClassButton.setDisable(true);
+
+		addInnerClassButton.setText("add inner class");
+		addInnerClassButton.setOnAction(event -> addInnerClass());
+		addInnerClassButton.setDisable(true);
+
+		nestableButton.setText("unnestable");
+		nestableButton.setOnAction(event -> toggleNestable());
+		nestableButton.setDisable(true);
+
 		getChildren().add(right);
 		StackPane.setAlignment(right, Pos.CENTER_RIGHT);
 		right.setAlignment(Pos.CENTER_RIGHT);
@@ -84,14 +95,74 @@ public class BottomPane extends StackPane implements IGuiComponent {
 
 		right.getChildren().add(unmatchVarButton);
 
+		selectedCandidateButton.setText("selected candidate: -");
+		selectedCandidateButton.setOnAction(event -> toggleCandidate());
+		selectedCandidateButton.setDisable(true);
+
+		unnestButton.setText("unnest");
+		unnestButton.setOnAction(event -> unnest());
+		unnestButton.setDisable(true);
+
 		SelectListener selectListener = new SelectListener();
 		srcPane.addListener(selectListener);
 		dstPane.addListener(selectListener);
 	}
 
 	@Override
+	public void onProjectChange() {
+		boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+		boolean hasNesterButtons = right.getChildren().contains(unnestButton);
+
+		if (isNesterProject && !hasNesterButtons) {
+			center.getChildren().remove(matchButton);
+			center.getChildren().remove(matchableButton);
+			center.getChildren().remove(matchPerfectMembersButton);
+			
+			right.getChildren().remove(unmatchClassButton);
+			right.getChildren().remove(unmatchMemberButton);
+			right.getChildren().remove(unmatchVarButton);
+
+			center.getChildren().add(addAnonymousClassButton);
+			center.getChildren().add(addInnerClassButton);
+			center.getChildren().add(nestableButton);
+
+			right.getChildren().add(selectedCandidateButton);
+			right.getChildren().add(unnestButton);
+		} else
+		if (!isNesterProject && hasNesterButtons) {
+			center.getChildren().remove(addAnonymousClassButton);
+			center.getChildren().remove(addInnerClassButton);
+			center.getChildren().remove(nestableButton);
+
+			right.getChildren().remove(selectedCandidateButton);
+			right.getChildren().remove(unnestButton);
+
+			center.getChildren().add(matchButton);
+			center.getChildren().add(matchableButton);
+			center.getChildren().add(matchPerfectMembersButton);
+
+			right.getChildren().add(unmatchClassButton);
+			right.getChildren().add(unmatchMemberButton);
+			right.getChildren().add(unmatchVarButton);
+		}
+	}
+
+	@Override
 	public void onMatchChange(Set<MatchType> types) {
 		if (!types.isEmpty()) {
+			updateMatchButtons();
+		}
+	}
+
+	@Override
+	public void onNestChange() {
+		updateNestButtons();
+	}
+
+	private void updateButtons() {
+		if (Config.getProjectConfig().isNesterProject()) {
+			updateNestButtons();
+		} else {
 			updateMatchButtons();
 		}
 	}
@@ -133,6 +204,43 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		unmatchVarButton.setDisable(!canUnmatchVar(varA));
 
 		matchPerfectMembersButton.setDisable(!canMatchPerfectMembers(clsA));
+	}
+
+	private void updateNestButtons() {
+		ClassInstance clazz = srcPane.getSelectedClass();
+		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
+
+		ClassInstance classNest = dstPane.getSelectedClass();
+		MethodInstance methodNest = dstPane.getSelectedMethod();
+
+		boolean hasClass = (equiv != null);
+		boolean isNestable = hasClass && equiv.isNestable();
+		boolean hasNest = hasClass && equiv.hasNest();
+		boolean hasMethodSelected = (methodNest != null);
+		boolean hasSelection = (classNest != null);
+
+		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous() || (!hasMethodSelected && !classNest.isEnum()));
+		addInnerClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeInner() || hasMethodSelected);
+		nestableButton.setText(hasClass && !hasNest && !isNestable ? "nestable" : "unnestable");
+		nestableButton.setDisable(!hasClass || (hasNest && isNestable));
+
+		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
+		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous());
+		unnestButton.setDisable(!hasClass || !hasNest);
+	}
+
+	private String getSelectedCandidateName(ClassInstance clazz, MethodInstance method) {
+		if (clazz == null) {
+			return "-";
+		}
+
+		String name = clazz.getDisplayName(gui.getNameType(), true);
+
+		if (method != null) {
+			name += "." + method.getDisplayName(gui.getNameType(), false);
+		}
+
+		return name;
 	}
 
 	// match / unmatch actions implementation
@@ -347,30 +455,95 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		}
 	}
 
+	private void addAnonymousClass() {
+		ClassInstance clazz = srcPane.getSelectedClass();
+		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
+
+		if (equiv == null) {
+			return;
+		}
+
+		ClassInstance classNest = dstPane.getSelectedClass();
+		MethodInstance methodNest = dstPane.getSelectedMethod();
+
+		if (classNest == null) {
+			return;
+		}
+
+		gui.getNester().addAnonymousClass(equiv, classNest, methodNest);
+		gui.onNestChange();
+	}
+
+	private void addInnerClass() {
+		ClassInstance clazz = srcPane.getSelectedClass();
+		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
+
+		if (equiv == null) {
+			return;
+		}
+
+		ClassInstance classNest = dstPane.getSelectedClass();
+
+		if (classNest == null) {
+			return;
+		}
+
+		gui.getNester().addInnerClass(equiv, classNest);
+		gui.onNestChange();
+	}
+
+	private void toggleNestable() {
+		ClassInstance clazz = srcPane.getSelectedClass();
+		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
+
+		if (equiv == null || (equiv.isNestable() && equiv.hasNest())) {
+			return;
+		}
+
+		equiv.setNestable(!equiv.isNestable());
+		gui.onNestChange();
+	}
+
+	private void toggleCandidate() {
+		dstPane.toggleSelectedNest();
+	}
+
+	private void unnest() {
+		ClassInstance clazz = srcPane.getSelectedClass();
+		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
+
+		if (equiv == null || !equiv.hasNest()) {
+			return;
+		}
+
+		gui.getNester().unnest(equiv);
+		gui.onNestChange();
+	}
+
 	private class SelectListener implements IGuiComponent {
 		@Override
 		public void onClassSelect(ClassInstance cls) {
-			updateMatchButtons();
+			updateButtons();
 		}
 
 		@Override
 		public void onMethodSelect(MethodInstance method) {
-			updateMatchButtons();
+			updateButtons();
 		}
 
 		@Override
 		public void onFieldSelect(FieldInstance field) {
-			updateMatchButtons();
+			updateButtons();
 		}
 
 		@Override
 		public void onMethodVarSelect(MethodVarInstance arg) {
-			updateMatchButtons();
+			updateButtons();
 		}
 
 		@Override
 		public void onMatchListRefresh() {
-			updateMatchButtons();
+			updateButtons();
 		}
 	}
 
@@ -401,10 +574,20 @@ public class BottomPane extends StackPane implements IGuiComponent {
 	private final Gui gui;
 	private final MatchPaneSrc srcPane;
 	private final MatchPaneDst dstPane;
+
+	private final HBox center = new HBox(GuiConstants.padding);
+	private final HBox right = new HBox(GuiConstants.padding);
+
 	private final Button matchButton = new Button();
 	private final Button matchableButton = new Button();
 	private final Button matchPerfectMembersButton = new Button();
 	private final Button unmatchClassButton = new Button();
 	private final Button unmatchMemberButton = new Button();
 	private final Button unmatchVarButton = new Button();
+
+	private final Button addAnonymousClassButton = new Button();
+	private final Button addInnerClassButton = new Button();
+	private final Button nestableButton = new Button();
+	private final Button selectedCandidateButton = new Button();
+	private final Button unnestButton = new Button();
 }

@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
+import javafx.geometry.Orientation;
 import javafx.scene.control.ListView;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
@@ -19,9 +20,13 @@ import matcher.NameType;
 import matcher.classifier.ClassClassifier;
 import matcher.classifier.ClassifierLevel;
 import matcher.classifier.FieldClassifier;
+import matcher.classifier.IRankResult;
 import matcher.classifier.MethodClassifier;
 import matcher.classifier.MethodVarClassifier;
 import matcher.classifier.RankResult;
+import matcher.classifier.nester.NestedClassClassifier;
+import matcher.classifier.nester.NestRankResult;
+import matcher.config.Config;
 import matcher.type.ClassEnv;
 import matcher.type.ClassEnvironment;
 import matcher.type.ClassInstance;
@@ -47,10 +52,13 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		components.add(content);
 		getItems().add(content);
 
-		// vbox
+		// matcher sidebar
 
-		VBox vbox = new VBox();
-		getItems().add(vbox);
+		getItems().add(matcherSidebar);
+
+		// nester sidebar
+
+		SplitPane matchLists = new SplitPane();
 
 		// match list
 
@@ -64,20 +72,58 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			announceSelectionChange(oldSel, newSel);
 		});
 
-		vbox.getChildren().add(matchList);
+		matcherSidebar.getChildren().add(matchList);
 		VBox.setVgrow(matchList, Priority.ALWAYS);
+
+		classMatchList.setCellFactory(ignore -> new NestDstListCell());
+		classMatchList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+			if (suppressChangeEvents || oldValue == newValue) return;
+
+			Matchable<?> oldSel = (oldValue == null) ? null : oldValue.getSubject();
+			Matchable<?> newSel = (newValue == null) ? null : newValue.getSubject();
+
+			announceClassSelectionChange(oldSel, newSel);
+		});
+		methodMatchList.setCellFactory(ignore -> new NestDstListCell());
+		methodMatchList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+			if (suppressChangeEvents || oldValue == newValue) return;
+
+			Matchable<?> oldSel = (oldValue == null) ? null : oldValue.getSubject();
+			Matchable<?> newSel = (newValue == null) ? null : newValue.getSubject();
+
+			announceMethodSelectionChange(oldSel, newSel);
+		});
+
+		matchLists.getItems().add(classMatchList);
+		matchLists.getItems().add(methodMatchList);
+		nesterSidebar.getChildren().add(matchLists);
+		VBox.setVgrow(matchLists, Priority.ALWAYS);
 
 		// match filter text field
 
-		vbox.getChildren().add(filterField);
+		matcherSidebar.getChildren().add(filterField);
 		filterField.textProperty().addListener((observable, oldValue, newValue) -> {
 			RankResult<? extends Matchable<?>> oldSelection = matchList.getSelectionModel().getSelectedItem();
-			updateResults(oldSelection != null ? oldSelection.getSubject() : null);
+			updateMatchResults(oldSelection != null ? oldSelection.getSubject() : null);
+		});
+
+		nesterSidebar.getChildren().add(nestFilterField);
+		nestFilterField.textProperty().addListener((observable, oldValue, newValue) -> {
+			NestRankResult oldClassSelection = classMatchList.getSelectionModel().getSelectedItem();
+			NestRankResult oldMethodSelection = methodMatchList.getSelectionModel().getSelectedItem();
+
+			Matchable<?> oldClass = (oldClassSelection == null) ? null : oldClassSelection.getSubject();
+			Matchable<?> oldMethod = (oldMethodSelection == null) ? null : oldMethodSelection.getSubject();
+
+			updateNestResults(oldClass, oldMethod);
 		});
 
 		// positioning
 
-		SplitPane.setResizableWithParent(vbox, false);
+		SplitPane.setResizableWithParent(matcherSidebar, false);
+		SplitPane.setResizableWithParent(nesterSidebar, false);
+		matchLists.setOrientation(Orientation.VERTICAL);
+		matchLists.setDividerPositions(0.75);
 		setDividerPosition(0, 1 - 0.25);
 
 		srcPane.addListener(srcListener);
@@ -89,6 +135,15 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			boolean full = item.getSubject() instanceof ClassInstance;
 
 			return String.format("%.3f %s", item.getScore(), item.getSubject().getDisplayName(gui.getNameType(), full));
+		}
+	}
+
+	private class NestDstListCell extends StyledListCell<NestRankResult> {
+		@Override
+		protected String getText(NestRankResult item) {
+			boolean full = item.getSubject() instanceof ClassInstance;
+
+			return String.format("%d %s", item.getScore(), item.getSubject().getDisplayName(gui.getNameType(), full));
 		}
 	}
 
@@ -133,12 +188,51 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		if (newField != oldField) onFieldSelect(newField);
 	}
 
+	private void announceClassSelectionChange(Matchable<?> oldSel, Matchable<?> newSel) {
+		if (oldSel == newSel) {
+			onMatchListRefresh();
+			return;
+		}
+
+		ClassInstance newClass = (newSel == null) ? null : (ClassInstance)newSel;
+		onClassSelect(newClass);
+
+		if (newClass != null) {
+			srcListener.onNestSelect(true);
+		}
+	}
+
+	private void announceMethodSelectionChange(Matchable<?> oldSel, Matchable<?> newSel) {
+		if (oldSel == newSel) {
+			onMatchListRefresh();
+			return;
+		}
+
+		MethodInstance newMethod = (newSel == null) ? null : (MethodInstance)newSel;
+		onMethodSelect(newMethod);
+	}
+
 	@Override
 	public ClassInstance getSelectedClass() {
-		RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
-		if (result == null) return null;
+		Matchable<?> subject = null;
 
-		return getClass(result.getSubject());
+		if (Config.getProjectConfig().isNesterProject()) {
+			NestRankResult result = classMatchList.getSelectionModel().getSelectedItem();
+
+			if (result != null) {
+				subject = result.getSubject();
+			}
+		} else {
+			RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
+
+			if (result != null) {
+				subject = result.getSubject();
+			}
+		}
+
+		if (subject == null) return null;
+
+		return getClass(subject);
 	}
 
 	private static ClassInstance getClass(Matchable<?> m) {
@@ -155,10 +249,25 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 	@Override
 	public MemberInstance<?> getSelectedMember() {
-		RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
-		if (result == null) return null;
+		Matchable<?> subject = null;
 
-		return getMember(result.getSubject());
+		if (Config.getProjectConfig().isNesterProject()) {
+			NestRankResult result = methodMatchList.getSelectionModel().getSelectedItem();
+
+			if (result != null) {
+				subject = result.getSubject();
+			}
+		} else {
+			RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
+
+			if (result != null) {
+				subject = result.getSubject();
+			}
+		}
+
+		if (subject == null) return null;
+
+		return getMember(subject);
 	}
 
 	private static MemberInstance<?> getMember(Matchable<?> m) {
@@ -175,10 +284,25 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 	@Override
 	public MethodInstance getSelectedMethod() {
-		RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
-		if (result == null) return null;
+		Matchable<?> subject = null;
 
-		return getMethod(result.getSubject());
+		if (Config.getProjectConfig().isNesterProject()) {
+			NestRankResult result = methodMatchList.getSelectionModel().getSelectedItem();
+
+			if (result != null) {
+				subject = result.getSubject();
+			}
+		} else {
+			RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
+
+			if (result != null) {
+				subject = result.getSubject();
+			}
+		}
+
+		if (subject == null) return null;
+
+		return getMethod(subject);
 	}
 
 	private static MethodInstance getMethod(Matchable<?> m) {
@@ -195,7 +319,14 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 	@Override
 	public FieldInstance getSelectedField() {
-		RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
+		RankResult<? extends Matchable<?>> result;
+
+		if (Config.getProjectConfig().isNesterProject()) {
+			result = null;
+		} else {
+			result = matchList.getSelectionModel().getSelectedItem();
+		}
+
 		if (result == null) return null;
 
 		return getField(result.getSubject());
@@ -213,7 +344,14 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 	@Override
 	public MethodVarInstance getSelectedMethodVar() {
-		RankResult<? extends Matchable<?>> result = matchList.getSelectionModel().getSelectedItem();
+		RankResult<? extends Matchable<?>> result;
+
+		if (Config.getProjectConfig().isNesterProject()) {
+			result = null;
+		} else {
+			result = matchList.getSelectionModel().getSelectedItem();
+		}
+
 		if (result == null) return null;
 
 		return getMethodVar(result.getSubject());
@@ -226,6 +364,14 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			return (MethodVarInstance) m;
 		} else {
 			throw new IllegalStateException();
+		}
+	}
+
+	public void toggleSelectedNest() {
+		if (methodMatchList.getSelectionModel().isEmpty()) {
+			methodMatchList.getSelectionModel().select(0);
+		} else {
+			methodMatchList.getSelectionModel().clearSelection();
 		}
 	}
 
@@ -252,6 +398,20 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 	public void onProjectChange() {
 		cmpClasses = gui.getEnv().getDisplayClassesB(!gui.isShowNonInputs());
 
+		boolean isNesterProject = Config.getProjectConfig().isNesterProject();
+		boolean hasNesterSidebar = getItems().contains(nesterSidebar);
+
+		if (isNesterProject && !hasNesterSidebar) {
+			getItems().remove(matcherSidebar);
+			getItems().add(nesterSidebar);
+		} else
+		if (!isNesterProject && hasNesterSidebar) {
+			getItems().remove(nesterSidebar);
+			getItems().add(matcherSidebar);
+		}
+
+		setDividerPosition(0, 1 - 0.25);
+
 		IFwdGuiComponent.super.onProjectChange();
 	}
 
@@ -261,15 +421,28 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 		suppressChangeEvents = true;
 
-		Comparator<RankResult<? extends Matchable<?>>> cmp;
+		if (Config.getProjectConfig().isNesterProject()) {
+			Comparator<NestRankResult> cmp;
 
-		if (gui.isSortMatchesAlphabetically()) {
-			cmp = getNameComparator();
+			if (gui.isSortMatchesAlphabetically()) {
+				cmp = getNestNameComparator();
+			} else {
+				cmp = getNestScoreComparator();
+			}
+
+			classMatchList.getItems().sort(cmp);
+			methodMatchList.getItems().sort(cmp);
 		} else {
-			cmp = getScoreComparator();
-		}
+			Comparator<RankResult<? extends Matchable<?>>> cmp;
 
-		matchList.getItems().sort(cmp);
+			if (gui.isSortMatchesAlphabetically()) {
+				cmp = getNameComparator();
+			} else {
+				cmp = getScoreComparator();
+			}
+
+			matchList.getItems().sort(cmp);
+		}
 
 		suppressChangeEvents = false;
 
@@ -289,6 +462,15 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		IFwdGuiComponent.super.onMatchChange(types);
 	}
 
+	void onNestChangeApply() {
+		IFwdGuiComponent.super.onNestChange();
+	}
+
+	@Override
+	public void onNestChange() {
+		srcListener.onNestSelect(true);
+	}
+
 	@Override
 	public Collection<IGuiComponent> getComponents() {
 		return components;
@@ -302,7 +484,15 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		return Comparator.<RankResult<? extends Matchable<?>>>comparingDouble(r -> r.getScore()).reversed();
 	}
 
-	private void updateResults(Matchable<?> oldSelection) {
+	private static Comparator<NestRankResult> getNestNameComparator() {
+		return Comparator.comparing(r -> r.getSubject().getName());
+	}
+
+	private static Comparator<NestRankResult> getNestScoreComparator() {
+		return Comparator.<NestRankResult>comparingInt(r -> r.getScore()).reversed();
+	}
+
+	private void updateMatchResults(Matchable<?> oldSelection) {
 		List<RankResult<? extends Matchable<?>>> newItems = new ArrayList<>(rankResults.size());
 		String filterStr = filterField.getText();
 
@@ -328,16 +518,16 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			}
 		}
 
-		RankResult<? extends Matchable<?>> best;
+		RankResult<? extends Matchable<?>> bestResult;
 
 		if (!newItems.isEmpty()) {
-			best = newItems.get(0);
+			bestResult = newItems.get(0);
 
 			if (gui.isSortMatchesAlphabetically()) {
 				newItems.sort(getNameComparator());
 			}
 		} else {
-			best = null;
+			bestResult = null;
 		}
 
 		suppressChangeEvents = true;
@@ -345,9 +535,9 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		matchList.getItems().setAll(newItems);
 
 		if (matchList.getSelectionModel().isEmpty()) {
-			matchList.getSelectionModel().select(best);
+			matchList.getSelectionModel().select(bestResult);
 
-			announceSelectionChange(oldSelection, best != null ? best.getSubject() : null);
+			announceSelectionChange(oldSelection, bestResult != null ? bestResult.getSubject() : null);
 		} else {
 			announceSelectionChange(oldSelection, matchList.getSelectionModel().getSelectedItem().getSubject());
 		}
@@ -355,8 +545,95 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		suppressChangeEvents = false;
 	}
 
+	private void updateNestResults(Matchable<?> oldClass, Matchable<?> oldMethod) {
+		List<NestRankResult> newClassResults = new ArrayList<>();
+		List<NestRankResult> newMethodResults = new ArrayList<>();
+
+		String filterStr = filterField.getText();
+
+		if (filterStr.isBlank()) {
+			addResults(nestRankResults, newClassResults, newMethodResults);
+		} else {
+			List<Object> stack = new ArrayList<>();
+
+			for (NestRankResult item : nestRankResults) {
+				stack.add(item);
+
+				Boolean res = evalFilter(stack, item);
+
+				if (res == null) { // eval failed
+					newClassResults.clear();
+					newMethodResults.clear();
+					addResults(nestRankResults, newClassResults, newMethodResults);
+					break;
+				} else if (res) {
+					addResult(item, newClassResults, newMethodResults);
+				}
+
+				stack.clear();
+			}
+		}
+
+		NestRankResult bestClassResult = null;
+		NestRankResult bestMethodResult = null;
+
+		for (NestRankResult result : newClassResults) {
+			if (bestClassResult == null || result.getScore() > bestClassResult.getScore()) {
+				bestClassResult = result;
+			}
+		}
+		for (NestRankResult result : newMethodResults) {
+			if (bestMethodResult == null || result.getScore() > bestMethodResult.getScore()) {
+				bestMethodResult = result;
+			}
+		}
+
+		if (gui.isSortMatchesAlphabetically()) {
+			newClassResults.sort(getNestNameComparator());
+			newMethodResults.sort(getNestNameComparator());
+		}
+
+		suppressChangeEvents = true;
+
+		classMatchList.getItems().setAll(newClassResults);
+		methodMatchList.getItems().setAll(newMethodResults);
+
+		if (classMatchList.getSelectionModel().isEmpty()) {
+			classMatchList.getSelectionModel().select(bestClassResult);
+
+			announceClassSelectionChange(oldClass, (bestClassResult == null) ? null : bestClassResult.getSubject());
+		} else {
+			announceClassSelectionChange(oldClass, classMatchList.getSelectionModel().getSelectedItem().getSubject());
+		}
+		if (!methodMatchList.getSelectionModel().isEmpty()) {
+			methodMatchList.getSelectionModel().clearSelection();
+
+			announceMethodSelectionChange(oldMethod, null);
+		}
+
+		suppressChangeEvents = false;
+	}
+
+	private void addResults(List<NestRankResult> results, List<NestRankResult> classResults, List<NestRankResult> methodResults) {
+		for (NestRankResult result : results) {
+			addResult(result, classResults, methodResults);
+		}
+	}
+
+	private void addResult(NestRankResult result, List<NestRankResult> classResults, List<NestRankResult> methodResults) {
+		switch (result.getSubject().getKind()) {
+		case CLASS:
+			classResults.add(result);
+			break;
+		case METHOD:
+			methodResults.add(result);
+			break;
+		default:
+		}
+	}
+
 	@SuppressWarnings("unchecked")
-	private Boolean evalFilter(List<Object> stack, RankResult<? extends Matchable<?>> resB) {
+	private Boolean evalFilter(List<Object> stack, IRankResult resB) {
 		final byte OP_TYPE_NONE = 0;
 		final byte OP_TYPE_ANY = 1;
 		final byte OP_TYPE_MATCHABLE = 2;
@@ -600,8 +877,8 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		if (a == null || b == null) return false;
 
 		if (a.getClass() != b.getClass()) {
-			if (a instanceof RankResult<?>) a = ((RankResult<?>) a).getSubject();
-			if (b instanceof RankResult<?>) b = ((RankResult<?>) b).getSubject();
+			if (a instanceof IRankResult) a = ((IRankResult) a).getSubject();
+			if (b instanceof IRankResult) b = ((IRankResult) b).getSubject();
 		}
 
 		if (a.getClass() != b.getClass()) {
@@ -647,6 +924,14 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		}
 
 		void onSelect(Set<MatchType> matchChangeTypes) {
+			if (Config.getProjectConfig().isNesterProject()) {
+				onNestSelect(false);
+			} else {
+				onMatchSelect(matchChangeTypes);
+			}
+		}
+
+		void onMatchSelect(Set<MatchType> matchChangeTypes) {
 			Matchable<?> newSrcSelection = getMatchableSrcSelection();
 			if (newSrcSelection == oldSrcSelection && matchChangeTypes == null) return;
 
@@ -706,12 +991,84 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 					assert rankResults.isEmpty();
 					rankResults.addAll(res);
 
-					updateResults(oldDstSelection);
+					updateMatchResults(oldDstSelection);
 					oldDstSelection = null;
 
 					if (matchChangeTypes != null) {
 						onMatchChangeApply(matchChangeTypes);
 					}
+				}
+			});
+		}
+
+		void onNestSelect(boolean force) {
+			Matchable<?> newSrcSelection = srcPane.getSelectedClass();
+			if (newSrcSelection == oldSrcSelection && !force) return;
+
+			// update dst selection
+			NestRankResult dstMethodResult = methodMatchList.getSelectionModel().getSelectedItem();
+			NestRankResult dstClassResult = classMatchList.getSelectionModel().getSelectedItem();
+
+			if (dstMethodResult != null) oldDstMethodSelection = dstMethodResult.getSubject();
+			if (dstClassResult != null) oldDstClassSelection = dstClassResult.getSubject();
+
+			NestRankResult selectedClassResult;
+
+			// refresh list selection only early if it wasn't empty and the src class selection changed to suppress class selection changes
+			// from (temporarily) clearing matchList and reentering onSelect while async ranking is ongoing
+
+			if (oldDstClassSelection != null && (newSrcSelection == null || oldSrcSelection == null || MatchPaneDst.getClass(newSrcSelection) != MatchPaneDst.getClass(oldSrcSelection))) {
+				announceMethodSelectionChange(oldDstMethodSelection, null);
+				announceClassSelectionChange(oldDstClassSelection, null);
+
+				oldDstMethodSelection = null;
+				oldDstClassSelection = null;
+
+				selectedClassResult = null;
+			} else {
+				selectedClassResult = dstClassResult;
+			}
+
+			oldSrcSelection = newSrcSelection;
+
+			nestRankResults.clear();
+			suppressChangeEvents = true;
+			classMatchList.getItems().clear();
+			methodMatchList.getItems().clear();
+			suppressChangeEvents = false;
+
+			Callable<List<? extends NestRankResult>> ranker;
+
+			if (newSrcSelection == null) { // no class selected
+				return;
+			} else if (newSrcSelection instanceof ClassInstance) { // unmatched class
+				ClassInstance cls = (ClassInstance) newSrcSelection;
+				ClassInstance equiv = cls.equiv;
+
+				ranker = () -> NestedClassClassifier.rank(equiv, cmpClasses, selectedClassResult);
+			} else {
+				throw new IllegalStateException();
+			}
+
+			final int cTaskId = ++taskId;
+
+			// update matches list
+			Gui.runAsyncTask(ranker)
+			.whenComplete((res, exc) -> {
+				if (exc != null) {
+					exc.printStackTrace();
+				} else if (taskId == cTaskId) {
+					assert nestRankResults.isEmpty();
+					nestRankResults.addAll(res);
+
+					Matchable<?> oldClassSelection = oldDstClassSelection;
+					Matchable<?> oldMethodSelection = oldDstMethodSelection;
+
+					oldDstClassSelection = null;
+					oldDstMethodSelection = null;
+
+					updateNestResults(oldClassSelection, oldMethodSelection);
+					onNestChangeApply();
 				}
 			});
 		}
@@ -739,14 +1096,22 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		private int taskId;
 		private Matchable<?> oldSrcSelection;
 		private Matchable<?> oldDstSelection;
+		private Matchable<?> oldDstClassSelection;
+		private Matchable<?> oldDstMethodSelection;
 	}
 
 	private final Gui gui;
 	private final MatchPaneSrc srcPane;
 	private final Collection<IGuiComponent> components = new ArrayList<>();
+	private final VBox matcherSidebar = new VBox();
 	private final ListView<RankResult<? extends Matchable<?>>> matchList = new ListView<>();
 	private final TextField filterField = new TextField();
+	private final VBox nesterSidebar = new VBox();
+	private final ListView<NestRankResult> classMatchList = new ListView<>();
+	private final ListView<NestRankResult> methodMatchList = new ListView<>();
+	private final TextField nestFilterField = new TextField();
 	private final List<RankResult<? extends Matchable<?>>> rankResults = new ArrayList<>();
+	private final List<NestRankResult> nestRankResults = new ArrayList<>();
 	private final SrcListener srcListener = new SrcListener();
 	private List<ClassInstance> cmpClasses;
 
