@@ -235,6 +235,11 @@ public class ClassFeatureExtractor implements LocalClassEnv {
 				dst.methodTypeRefs.add(method);
 				method.classRefs.add(dst);
 
+				if (ain.getOpcode() != Opcodes.NEW) {
+					// anonymous classes cannot be the type of a variable
+					dst.markNotAnonymous();
+				}
+
 				break;
 			}
 			case AbstractInsnNode.INVOKE_DYNAMIC_INSN: {

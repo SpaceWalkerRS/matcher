@@ -87,6 +87,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		this.elementClass = elementClass;
 
 		if (env.isShared()) matchedClass = this;
+
+		if (isArray()) {
+			this.elementClass.markNotAnonymous();
+		}
 	}
 
 	@Override
