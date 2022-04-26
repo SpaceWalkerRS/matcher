@@ -1112,6 +1112,21 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return equiv == null ? equiv = env.getOther().getClsById(id) : equiv;
 	}
 
+	public boolean isTopLevel() {
+		return outerClass == null && nest == null;
+	}
+
+	public ClassInstance getTopLevelClass() {
+		if (outerClass != null) {
+			return outerClass.getTopLevelClass();
+		}
+		if (nest != null) {
+			return nest.getEnclosingClass().getTopLevelClass();
+		}
+
+		return this;
+	}
+
 	public boolean hasPotentialNest() {
 		if (!isNestable()) {
 			return false;

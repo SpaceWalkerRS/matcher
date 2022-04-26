@@ -164,21 +164,27 @@ public class NestedClassClassifier {
 		// use to access private members of the inner class.
 		if (clazz.hasSyntheticMethods()) {
 			Collection<ClassInstance> references = new LinkedHashSet<>();
+			Collection<ClassInstance> topLevelReferences = new LinkedHashSet<>();
 			MethodInstance[] syntheticMethods = clazz.getSyntheticMethods();
 
 			for (MethodInstance method : syntheticMethods) {
 				for (MethodInstance ref : method.getRefsIn()) {
-					references.add(ref.getCls());
+					ClassInstance cls = ref.getCls();
+
+					references.add(cls);
+					topLevelReferences.add(cls.getTopLevelClass());
 				}
 			}
 
-			int score = switch (references.size()) {
-				case 0  -> 40;
-				case 1  -> 80;
-				default -> 60;
-			};
+			int baseScore = (topLevelReferences.size() == 1) ? 80 : 60;
 
 			for (ClassInstance ref : references) {
+				int score = baseScore;
+
+				if (!ref.isTopLevel()) {
+					score -= 20;
+				}
+
 				if (!checkOnly) {
 					// Sometimes the enclosing class is mistaken for an inner class.
 					// If that is more likely, move on to the next candidate...
@@ -197,6 +203,7 @@ public class NestedClassClassifier {
 		// class. It might reference static synthetic methods of the enclosing
 		// class
 		Collection<ClassInstance> classReferences = new LinkedHashSet<>();
+		Collection<ClassInstance> topLevelClassReferences = new LinkedHashSet<>();
 		MethodInstance[] methods = clazz.getMethods();
 
 		for (MethodInstance method : methods) {
@@ -205,17 +212,20 @@ public class NestedClassClassifier {
 
 				if (classReference != clazz && methodReference.isStatic() && methodReference.isSynthetic()) {
 					classReferences.add(classReference);
+					topLevelClassReferences.add(classReference.getTopLevelClass());
 				}
 			}
 		}
 
-		int score = switch (classReferences.size()) {
-			case 0  -> 20;
-			case 1  -> 60;
-			default -> 40;
-		};
+		int baseScore = (topLevelClassReferences.size() == 1) ? 60 : 40;
 
 		for (ClassInstance ref : classReferences) {
+			int score = baseScore;
+
+			if (!ref.isTopLevel()) {
+				score -= 20;
+			}
+
 			if (!checkOnly) {
 				// Sometimes the enclosing class is mistaken for an inner class.
 				// If that is more likely, move on to the next candidate...
