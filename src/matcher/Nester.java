@@ -1,7 +1,5 @@
 package matcher;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleConsumer;
@@ -9,11 +7,9 @@ import java.util.function.DoubleConsumer;
 import matcher.classifier.nester.NestRankResult;
 import matcher.classifier.nester.NestType;
 import matcher.classifier.nester.NestedClassClassifier;
-import matcher.config.Config;
 import matcher.config.ProjectConfig;
 import matcher.type.ClassEnvironment;
 import matcher.type.ClassInstance;
-import matcher.type.InputFile;
 import matcher.type.Matchable;
 import matcher.type.MethodInstance;
 
@@ -45,24 +41,6 @@ public class Nester {
 
 	public ClassEnvironment getEnv() {
 		return env;
-	}
-
-	public void initFromMappings(List<Path> inputDirs,
-			List<InputFile> inputFiles,
-			List<InputFile> cpFiles,
-			String nonObfuscatedClassPattern,
-			String nonObfuscatedMemberPattern,
-			DoubleConsumer progressReceiver) throws IOException {
-		List<Path> paths = Matcher.resolvePaths(inputDirs, inputFiles);
-		List<Path> classPath = Matcher.resolvePaths(inputDirs, cpFiles);
-
-		ProjectConfig config = new ProjectConfig(paths, classPath, false, nonObfuscatedClassPattern, nonObfuscatedMemberPattern);
-		if (!config.isValid()) throw new IOException("invalid config");
-		Config.setProjectConfig(config);
-		Config.saveAsLast();
-
-		reset();
-		init(config, progressReceiver);
 	}
 
 	public void addAnonymousClass(ClassInstance clazz, ClassInstance enclClass, MethodInstance enclMethod) {
