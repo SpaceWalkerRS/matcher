@@ -225,7 +225,7 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		nestableButton.setDisable(!hasClass || (hasNest && isNestable));
 
 		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
-		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous());
+		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || (!hasMethodSelected && !equiv.canBeAnonymous()));
 		unnestButton.setDisable(!hasClass || !hasNest);
 	}
 

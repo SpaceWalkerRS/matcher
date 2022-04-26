@@ -1005,6 +1005,8 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			Matchable<?> newSrcSelection = srcPane.getSelectedClass();
 			if (newSrcSelection == oldSrcSelection && !force) return;
 
+			methodMatchList.setDisable(newSrcSelection != null && newSrcSelection instanceof ClassInstance && !((ClassInstance)newSrcSelection).equiv.canBeAnonymous());
+
 			// update dst selection
 			NestRankResult dstMethodResult = methodMatchList.getSelectionModel().getSelectedItem();
 			NestRankResult dstClassResult = classMatchList.getSelectionModel().getSelectedItem();
