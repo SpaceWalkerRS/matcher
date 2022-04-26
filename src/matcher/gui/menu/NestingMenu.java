@@ -37,6 +37,10 @@ public class NestingMenu extends Menu {
 
 		getItems().add(new SeparatorMenuItem());
 
+		menuItem = new MenuItem("Re-evaluate all");
+		getItems().add(menuItem);
+		menuItem.setOnAction(event -> filterAll());
+
 		menuItem = new MenuItem("Status");
 		getItems().add(menuItem);
 		menuItem.setOnAction(event -> showNestingStatus());
@@ -67,6 +71,15 @@ public class NestingMenu extends Menu {
 					if (clazz != null) {
 						gui.getNester().autoNestClass(clazz.equiv);
 					}
+				},
+				() -> gui.onNestChange(),
+				Throwable::printStackTrace);
+	}
+
+	public void filterAll() {
+		gui.runProgressTask("Re-evaluating potential nests...", 
+				p -> {
+					gui.getNester().invalidatePotentialScores();
 				},
 				() -> gui.onNestChange(),
 				Throwable::printStackTrace);

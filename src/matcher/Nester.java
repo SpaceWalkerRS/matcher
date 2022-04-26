@@ -97,6 +97,8 @@ public class Nester {
 		Matcher.runInParallel(classes, clazz -> {
 			autoNestClass(clazz, minScore);
 		}, progressReceiver);
+
+		invalidatePotentialScores();
 	}
 
 	public void autoNestClass(ClassInstance clazz) {
@@ -127,6 +129,16 @@ public class Nester {
 
 			if (type == NestType.INNER) {
 				clazz.setSimpleName(clazz.getName());
+			}
+		}
+	}
+
+	public void invalidatePotentialScores() {
+		for (ClassInstance clazz : env.getClassesA()) {
+			ClassInstance equiv = clazz.equiv;
+
+			if (equiv.isNestable() && !equiv.hasNest()) {
+				equiv.markPotentialScoreDirty();
 			}
 		}
 	}
