@@ -1,7 +1,5 @@
 package matcher.gui.menu;
 
-import java.util.EnumSet;
-
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
@@ -10,7 +8,6 @@ import javafx.scene.control.Alert.AlertType;
 import matcher.Nester.NestingStatus;
 import matcher.gui.Gui;
 import matcher.type.ClassInstance;
-import matcher.type.MatchType;
 
 public class NestingMenu extends Menu {
 	NestingMenu(Gui gui) {
@@ -49,7 +46,7 @@ public class NestingMenu extends Menu {
 		gui.runProgressTask(
 				"Auto nesting...",
 				p -> gui.getNester().autoNestAll(p),
-				() -> gui.onMatchChange(EnumSet.allOf(MatchType.class)),
+				() -> gui.onNestChange(),
 				Throwable::printStackTrace);
 	}
 
@@ -57,7 +54,7 @@ public class NestingMenu extends Menu {
 		gui.runProgressTask(
 				"Auto nesting...",
 				p -> gui.getNester().autoNestAll(minScore, p),
-				() -> gui.onMatchChange(EnumSet.allOf(MatchType.class)),
+				() -> gui.onNestChange(),
 				Throwable::printStackTrace);
 	}
 
@@ -71,7 +68,7 @@ public class NestingMenu extends Menu {
 						gui.getNester().autoNestClass(clazz.equiv);
 					}
 				},
-				() -> gui.onMatchChange(EnumSet.allOf(MatchType.class)),
+				() -> gui.onNestChange(),
 				Throwable::printStackTrace);
 	}
 
