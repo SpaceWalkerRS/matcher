@@ -1232,6 +1232,8 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 				}
 			}
 
+			innerAccess = null;
+
 			if (nest != null) {
 				ClassInstance enclClass = nest.getEnclosingClass();
 
@@ -1249,7 +1251,19 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			}
 
 			markPotentialScoreDirty();
+
+			if (nest != null && nest.getType() == NestType.INNER) {
+				innerAccess = getAccess();
+			}
 		}
+	}
+
+	public Integer getInnerAccess() {
+		return innerAccess;
+	}
+
+	public void setInnerAccess(int access) {
+		innerAccess = access;
 	}
 
 	public String getSimpleName() {
@@ -1267,6 +1281,14 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			}
 		}
 		if (m instanceof ClassInstance) {
+			ClassInstance c = (ClassInstance)m;
+
+			if (c.outerClass != null) {
+				if (this == c.outerClass || encloses(c.outerClass)) {
+					return true;
+				}
+			}
+
 			Nest nest = ((ClassInstance)m).getNest();
 
 			if (nest != null) {
@@ -1536,6 +1558,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 	private boolean nestable = true;
 	private Nest nest;
+	private Integer innerAccess;
 	private String simpleName;
 	private boolean canBeAnonymous = true;
 

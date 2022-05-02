@@ -106,13 +106,13 @@ public class NesterIo {
 			}
 		}
 
-		// clazz.enableAccess(access); TODO
-
 		if (innerName == null) {
 			nester.addAnonymousClass(clazz, enclClass, enclMethod);
 		} else {
 			nester.addInnerClass(clazz, enclClass, innerName);
 		}
+
+		clazz.setInnerAccess(access);
 	}
 
 	public static boolean write(Nester nester, Path path) throws IOException {
@@ -151,12 +151,18 @@ public class NesterIo {
 	}
 
 	private static void nestClass(Writer w, ClassInstance clazz, ClassInstance enclClass, MethodInstance enclMethod) throws IOException {
+		Integer rawAccess = clazz.getInnerAccess();
+
+		if (rawAccess == null) {
+			rawAccess = clazz.getAccess();
+		}
+
 		String className = clazz.getName();
 		String enclClassName = enclClass.getName();
 		String enclMethodName = "";
 		String enclMethodDesc = "";
 		String innerName = clazz.getSimpleName();
-		String access = String.valueOf(clazz.getAccess());
+		String access = String.valueOf(rawAccess);
 
 		if (enclMethod != null) {
 			enclMethodName = enclMethod.getName();

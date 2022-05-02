@@ -16,6 +16,8 @@ import matcher.classifier.ClassifierLevel;
 import matcher.classifier.FieldClassifier;
 import matcher.classifier.MethodClassifier;
 import matcher.classifier.RankResult;
+import matcher.classifier.nester.Nest;
+import matcher.classifier.nester.NestType;
 import matcher.config.Config;
 import matcher.type.ClassInstance;
 import matcher.type.FieldInstance;
@@ -31,6 +33,8 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		this.gui = gui;
 		this.srcPane = srcPane;
 		this.dstPane = dstPane;
+
+		this.accessFlagsMenu = new AccessFlagsMenu(this.gui, this.srcPane, this.dstPane);
 
 		init();
 	}
@@ -68,6 +72,10 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		addInnerClassButton.setOnAction(event -> addInnerClass());
 		addInnerClassButton.setDisable(true);
 
+		selectedCandidateButton.setText("selected candidate: -");
+		selectedCandidateButton.setOnAction(event -> toggleCandidate());
+		selectedCandidateButton.setDisable(true);
+
 		nestableButton.setText("unnestable");
 		nestableButton.setOnAction(event -> toggleNestable());
 		nestableButton.setDisable(true);
@@ -95,9 +103,8 @@ public class BottomPane extends StackPane implements IGuiComponent {
 
 		right.getChildren().add(unmatchVarButton);
 
-		selectedCandidateButton.setText("selected candidate: -");
-		selectedCandidateButton.setOnAction(event -> toggleCandidate());
-		selectedCandidateButton.setDisable(true);
+		accessFlagsMenu.setText("access");
+		accessFlagsMenu.setDisable(true);
 
 		unnestButton.setText("unnest");
 		unnestButton.setOnAction(event -> unnest());
@@ -124,17 +131,19 @@ public class BottomPane extends StackPane implements IGuiComponent {
 
 			center.getChildren().add(addAnonymousClassButton);
 			center.getChildren().add(addInnerClassButton);
+			center.getChildren().add(selectedCandidateButton);
 			center.getChildren().add(nestableButton);
 
-			right.getChildren().add(selectedCandidateButton);
+			right.getChildren().add(accessFlagsMenu);
 			right.getChildren().add(unnestButton);
 		} else
 		if (!isNesterProject && hasNesterButtons) {
 			center.getChildren().remove(addAnonymousClassButton);
 			center.getChildren().remove(addInnerClassButton);
+			center.getChildren().remove(selectedCandidateButton);
 			center.getChildren().remove(nestableButton);
 
-			right.getChildren().remove(selectedCandidateButton);
+			right.getChildren().remove(accessFlagsMenu);
 			right.getChildren().remove(unnestButton);
 
 			center.getChildren().add(matchButton);
@@ -210,22 +219,26 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		ClassInstance clazz = srcPane.getSelectedClass();
 		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
 
+		Nest nest = equiv.getNest();
 		ClassInstance classNest = dstPane.getSelectedClass();
 		MethodInstance methodNest = dstPane.getSelectedMethod();
 
 		boolean hasClass = (equiv != null);
 		boolean isNestable = hasClass && equiv.isNestable();
-		boolean hasNest = hasClass && equiv.hasNest();
+		boolean hasNest = hasClass && nest != null;
+		boolean isInner = hasNest && (nest.getType() == NestType.INNER);
 		boolean hasMethodSelected = (methodNest != null);
 		boolean hasSelection = (classNest != null);
 
 		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous() || (!hasMethodSelected && !classNest.isEnum()));
 		addInnerClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeInner() || hasMethodSelected);
+		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
+		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || (!hasMethodSelected && !equiv.canBeAnonymous()));
 		nestableButton.setText(hasClass && !hasNest && !isNestable ? "nestable" : "unnestable");
 		nestableButton.setDisable(!hasClass || (hasNest && isNestable));
 
-		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
-		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || (!hasMethodSelected && !equiv.canBeAnonymous()));
+		accessFlagsMenu.setDisable(!hasClass || !hasNest || !isInner);
+		accessFlagsMenu.update();
 		unnestButton.setDisable(!hasClass || !hasNest);
 	}
 
@@ -592,7 +605,8 @@ public class BottomPane extends StackPane implements IGuiComponent {
 
 	private final Button addAnonymousClassButton = new Button();
 	private final Button addInnerClassButton = new Button();
-	private final Button nestableButton = new Button();
 	private final Button selectedCandidateButton = new Button();
+	private final Button nestableButton = new Button();
+	private final AccessFlagsMenu accessFlagsMenu;
 	private final Button unnestButton = new Button();
 }
