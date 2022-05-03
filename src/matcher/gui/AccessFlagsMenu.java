@@ -45,7 +45,7 @@ public class AccessFlagsMenu extends MenuBar {
 			privateAccess.selectedProperty().addListener((value, wasSelected, isSelected) -> {
 				if (suppressUpdates || wasSelected == isSelected) return;
 
-				disable(Opcodes.ACC_PROTECTED, Opcodes.ACC_PUBLIC);
+				disable(Opcodes.ACC_PROTECTED | Opcodes.ACC_PUBLIC);
 
 				if (isSelected) {
 					enable(Opcodes.ACC_PRIVATE);
@@ -61,7 +61,7 @@ public class AccessFlagsMenu extends MenuBar {
 			protectedAccess.selectedProperty().addListener((value, wasSelected, isSelected) -> {
 				if (suppressUpdates || wasSelected == isSelected) return;
 
-				disable(Opcodes.ACC_PRIVATE, Opcodes.ACC_PUBLIC);
+				disable(Opcodes.ACC_PRIVATE | Opcodes.ACC_PUBLIC);
 
 				if (isSelected) {
 					enable(Opcodes.ACC_PROTECTED);
@@ -77,7 +77,7 @@ public class AccessFlagsMenu extends MenuBar {
 			publicAccess.selectedProperty().addListener((value, wasSelected, isSelected) -> {
 				if (suppressUpdates || wasSelected == isSelected) return;
 
-				disable(Opcodes.ACC_PRIVATE, Opcodes.ACC_PROTECTED);
+				disable(Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED);
 
 				if (isSelected) {
 					enable(Opcodes.ACC_PUBLIC);
@@ -104,24 +104,12 @@ public class AccessFlagsMenu extends MenuBar {
 			getItems().add(staticAccess);
 		}
 
-		private void enable(int... opcodes) {
-			setAccess(access -> {
-				for (int opcode : opcodes) {
-					access |= opcode;
-				}
-
-				return access;
-			});
+		private void enable(int opcodes) {
+			setAccess(access -> access | opcodes);
 		}
 
-		private void disable(int... opcodes) {
-			setAccess(access -> {
-				for (int opcode : opcodes) {
-					access &= ~opcode;
-				}
-				
-				return access;
-			});
+		private void disable(int opcodes) {
+			setAccess(access -> access & ~opcodes);
 		}
 
 		private void setAccess(Function<Integer, Integer> f) {
@@ -184,32 +172,12 @@ public class AccessFlagsMenu extends MenuBar {
 			protectedAccess.setSelected((access & Opcodes.ACC_PROTECTED) != 0);
 			publicAccess.setSelected((access & Opcodes.ACC_PUBLIC) != 0);
 
-			boolean allowStatic = canBeStatic(equiv, nest);
+			boolean allowStatic = equiv.canBeStatic();
 
 			staticAccess.setDisable(!allowStatic);
 			staticAccess.setSelected(allowStatic && (access & Opcodes.ACC_STATIC) != 0);
 
 			suppressUpdates = false;
-		}
-
-		private boolean canBeStatic(ClassInstance clazz, Nest nest) {
-			if (clazz.hasSyntheticFields()) {
-				return false;
-			}
-
-			ClassInstance enclClass = nest.getEnclosingClass();
-
-			if (enclClass.isTopLevel()) {
-				return true;
-			}
-
-			Integer access = enclClass.getInnerAccess();
-
-			if (access == null) {
-				access = enclClass.getAccess();
-			}
-
-			return (access & Opcodes.ACC_STATIC) != 0;
 		}
 
 		private final CheckMenuItem privateAccess;

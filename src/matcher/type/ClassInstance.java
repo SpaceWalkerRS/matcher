@@ -1274,6 +1274,42 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		simpleName = name;
 	}
 
+	public boolean canBeStatic() {
+		if (!canBeStatic || nest == null || nest.getType() != NestType.INNER) {
+			return false;
+		}
+
+		ClassInstance enclClass = nest.getEnclosingClass();
+
+		if (!enclClass.isTopLevel() && !enclClass.isActuallyStatic()) {
+			return false;
+		}
+
+		MethodInstance[] methods = getSyntheticMethods();
+
+		for (MethodInstance method : methods) {
+			if (!method.isStatic()) {
+				continue;
+			}
+
+			MethodVarInstance[] args = method.getArgs();
+
+			if (args.length == 1 && args[0].getType() == this) {
+				Set<MethodInstance> methodRefs = method.getRefsIn();
+
+				for (MethodInstance methodRef : methodRefs) {
+					ClassInstance classRef = methodRef.getCls();
+
+					if (classRef.encloses(this)) {
+						return false;
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
 	public boolean encloses(Matchable<?> m) {
 		for (Matchable<?> p = m.getOwner(); p != null; p = p.getOwner()) {
 			if (this == p) {
@@ -1315,10 +1351,25 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return !isStatic() || !hasStaticMembers();
 	}
 
+	public boolean isActuallyStatic() {
+		int access = innerAccess;
+
+		if (innerAccess == null) {
+			access = getAccess();
+		}
+
+		return (access & Opcodes.ACC_STATIC) != 0;
+	}
+
 	public boolean hasStaticMembers() {
 		if (hasStaticMembers == null) {
-			for (ClassInstance clazz : nestingClasses) {
+			for (ClassInstance clazz : innerClasses) {
 				if (clazz.isStatic()) {
+					return hasStaticMembers = true;
+				}
+			}
+			for (ClassInstance clazz : nestingClasses) {
+				if (clazz.isActuallyStatic()) {
 					return hasStaticMembers = true;
 				}
 			}
@@ -1359,6 +1410,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			for (FieldInstance field : fields) {
 				if (field.isSynthetic()) {
 					syntheticFields[index++] = field;
+					canBeStatic = false;
 				}
 			}
 		}
@@ -1561,6 +1613,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	private Integer innerAccess;
 	private String simpleName;
 	private boolean canBeAnonymous = true;
+	private boolean canBeStatic = true;
 
 	private final Set<ClassInstance> nestingClasses = Util.newIdentityHashSet();
 
