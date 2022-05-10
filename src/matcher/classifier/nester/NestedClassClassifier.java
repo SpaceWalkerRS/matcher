@@ -110,6 +110,10 @@ public class NestedClassClassifier {
 		MethodInstance enclMethod = references.iterator().next();
 		ClassInstance enclClass = enclMethod.getCls();
 
+		if (enclClass == clazz) {
+			return null;
+		}
+
 		int score = (methods.length == 1) ? 90 : (clazz.hasSyntheticFields() ? 60 : 30);
 
 		// anonymous classes are usually package private
@@ -187,11 +191,11 @@ public class NestedClassClassifier {
 
 				if (!checkOnly) {
 					// Sometimes the enclosing class is mistaken for an inner class.
-					// If that is more likely, move on to the next candidate...
+					// If that is more likely, reduce the score...
 					NestRankResult refResult = tryNestClass(ref, true);
 
-					if (refResult != null && refResult.getScore() > score) {
-						continue;
+					if (refResult != null && refResult.getSubject() == clazz && refResult.getScore() > score) {
+						score -= 20;
 					}
 				}
 
@@ -228,11 +232,11 @@ public class NestedClassClassifier {
 
 			if (!checkOnly) {
 				// Sometimes the enclosing class is mistaken for an inner class.
-				// If that is more likely, move on to the next candidate...
+				// If that is more likely, reduce the score
 				NestRankResult refResult = tryNestClass(ref, true);
 
-				if (refResult != null && refResult.getScore() > score) {
-					continue;
+				if (refResult != null && refResult.getSubject() == clazz && refResult.getScore() > score) {
+					score -= 20;
 				}
 			}
 
