@@ -1254,6 +1254,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 			if (nest != null && nest.getType() == NestType.INNER) {
 				innerAccess = getAccess();
+
+				if (hasStaticMembers()) {
+					innerAccess |= Opcodes.ACC_STATIC;
+				}
 			}
 		}
 	}
@@ -1348,11 +1352,15 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean canBeInner() {
-		return !isStatic() || !hasStaticMembers();
+		if (!canBeStatic && hasStaticMembers()) {
+			return false;
+		}
+
+		return !isEnum() || superClass.getName().equals("java/lang/Enum");
 	}
 
 	public boolean isActuallyStatic() {
-		int access = innerAccess;
+		Integer access = innerAccess;
 
 		if (innerAccess == null) {
 			access = getAccess();

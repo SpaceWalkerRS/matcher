@@ -115,7 +115,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			Matchable<?> oldClass = (oldClassSelection == null) ? null : oldClassSelection.getSubject();
 			Matchable<?> oldMethod = (oldMethodSelection == null) ? null : oldMethodSelection.getSubject();
 
-			updateNestResults(oldClass, oldMethod);
+			updateNestResults(oldClass, oldMethod, false);
 		});
 
 		// positioning
@@ -504,7 +504,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			for (RankResult<? extends Matchable<?>> item : rankResults) {
 				stack.add(item);
 
-				Boolean res = evalFilter(stack, item);
+				Boolean res = evalFilter(filterStr, stack, item);
 
 				if (res == null) { // eval failed
 					newItems.clear();
@@ -545,11 +545,11 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		suppressChangeEvents = false;
 	}
 
-	private void updateNestResults(Matchable<?> oldClass, Matchable<?> oldMethod) {
+	private void updateNestResults(Matchable<?> oldClassSelection, Matchable<?> oldMethodSelection, boolean srcSelectionChanged) {
 		List<NestRankResult> newClassResults = new ArrayList<>();
 		List<NestRankResult> newMethodResults = new ArrayList<>();
 
-		String filterStr = filterField.getText();
+		String filterStr = nestFilterField.getText();
 
 		if (filterStr.isBlank()) {
 			addResults(nestRankResults, newClassResults, newMethodResults);
@@ -559,7 +559,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			for (NestRankResult item : nestRankResults) {
 				stack.add(item);
 
-				Boolean res = evalFilter(stack, item);
+				Boolean res = evalFilter(filterStr, stack, item);
 
 				if (res == null) { // eval failed
 					newClassResults.clear();
@@ -574,11 +574,13 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			}
 		}
 
+		boolean updateClassResults = (srcSelectionChanged || !newClassResults.equals(classMatchList.getItems()));
+
 		NestRankResult bestClassResult = null;
 		NestRankResult bestMethodResult = null;
 
 		for (NestRankResult result : newClassResults) {
-			if (bestClassResult == null || result.getScore() > bestClassResult.getScore()) {
+			if (srcSelectionChanged ? (bestClassResult == null || result.getScore() > bestClassResult.getScore()) : (result.getSubject() == oldClassSelection)) {
 				bestClassResult = result;
 			}
 		}
@@ -595,20 +597,24 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 		suppressChangeEvents = true;
 
-		classMatchList.getItems().setAll(newClassResults);
+		if (updateClassResults) {
+			classMatchList.getItems().setAll(newClassResults);
+		}
 		methodMatchList.getItems().setAll(newMethodResults);
 
 		if (classMatchList.getSelectionModel().isEmpty()) {
-			classMatchList.getSelectionModel().select(bestClassResult);
+			if (updateClassResults) {
+				classMatchList.getSelectionModel().select(bestClassResult);
 
-			announceClassSelectionChange(oldClass, (bestClassResult == null) ? null : bestClassResult.getSubject());
+				announceClassSelectionChange(oldClassSelection, (bestClassResult == null) ? null : bestClassResult.getSubject());
+			}
 		} else {
-			announceClassSelectionChange(oldClass, classMatchList.getSelectionModel().getSelectedItem().getSubject());
+			announceClassSelectionChange(oldClassSelection, classMatchList.getSelectionModel().getSelectedItem().getSubject());
 		}
 		if (!methodMatchList.getSelectionModel().isEmpty()) {
 			methodMatchList.getSelectionModel().clearSelection();
 
-			announceMethodSelectionChange(oldMethod, null);
+			announceMethodSelectionChange(oldMethodSelection, null);
 		}
 
 		suppressChangeEvents = false;
@@ -632,8 +638,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		}
 	}
 
-	@SuppressWarnings("unchecked")
-	private Boolean evalFilter(List<Object> stack, IRankResult resB) {
+	private Boolean evalFilter(String filterStr, List<Object> stack, IRankResult resB) {
 		final byte OP_TYPE_NONE = 0;
 		final byte OP_TYPE_ANY = 1;
 		final byte OP_TYPE_MATCHABLE = 2;
@@ -643,7 +648,6 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 		final byte OP_TYPE_INT = 6;
 		final byte OP_TYPE_COMPARABLE = 7;
 
-		String filterStr = filterField.getText();
 		if (filterStr.isBlank()) return Boolean.TRUE;
 
 		Matchable<?> itemB = resB.getSubject();
@@ -742,8 +746,8 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 				Object operand = stack.remove(stack.size() - 1);
 
 				boolean valid = type == OP_TYPE_ANY
-						|| type == OP_TYPE_MATCHABLE && (operand instanceof RankResult<?> || operand instanceof Matchable<?>)
-						|| type == OP_TYPE_CLASS && (operand instanceof RankResult<?> || operand instanceof ClassInstance || operand instanceof String)
+						|| type == OP_TYPE_MATCHABLE && (operand instanceof IRankResult || operand instanceof Matchable<?>)
+						|| type == OP_TYPE_CLASS && (operand instanceof IRankResult || operand instanceof ClassInstance || operand instanceof String)
 						|| type == OP_TYPE_STRING && operand instanceof String
 						|| type == OP_TYPE_BOOL && operand instanceof Boolean
 						|| type == OP_TYPE_INT && operand instanceof Integer
@@ -754,10 +758,10 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 					return null;
 				}
 
-				if (type == OP_TYPE_MATCHABLE && operand instanceof RankResult<?>) {
-					operand = ((RankResult<? extends Matchable<?>>) operand).getSubject();
-				} else if (type == OP_TYPE_CLASS && operand instanceof RankResult<?>) {
-					operand = getClass(((RankResult<? extends Matchable<?>>) operand).getSubject());
+				if (type == OP_TYPE_MATCHABLE && operand instanceof IRankResult) {
+					operand = ((IRankResult) operand).getSubject();
+				} else if (type == OP_TYPE_CLASS && operand instanceof IRankResult) {
+					operand = getClass(((IRankResult) operand).getSubject());
 				} else if (type == OP_TYPE_CLASS && operand instanceof String) {
 					ClassInstance cls = env.getClsByName((String) operand);
 
@@ -1003,7 +1007,9 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 		void onNestSelect(boolean force) {
 			Matchable<?> newSrcSelection = srcPane.getSelectedClass();
-			if (newSrcSelection == oldSrcSelection && !force) return;
+			boolean srcSelectionChanged = (newSrcSelection != oldSrcSelection);
+
+			if (!srcSelectionChanged && !force) return;
 
 			methodMatchList.setDisable(newSrcSelection != null && newSrcSelection instanceof ClassInstance && !((ClassInstance)newSrcSelection).equiv.canBeAnonymous());
 
@@ -1035,7 +1041,9 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 
 			nestRankResults.clear();
 			suppressChangeEvents = true;
-			classMatchList.getItems().clear();
+			if (srcSelectionChanged) {
+				classMatchList.getItems().clear();
+			}
 			methodMatchList.getItems().clear();
 			suppressChangeEvents = false;
 
@@ -1069,7 +1077,7 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 					oldDstClassSelection = null;
 					oldDstMethodSelection = null;
 
-					updateNestResults(oldClassSelection, oldMethodSelection);
+					updateNestResults(oldClassSelection, oldMethodSelection, srcSelectionChanged);
 					onNestChangeApply();
 				}
 			});
