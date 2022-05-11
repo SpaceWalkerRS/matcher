@@ -124,7 +124,7 @@ public class NestedClassClassifier {
 			ClassInstance classRef = ref.getCls();
 
 			if (classRef != clazz) {
-				references.add(classRef);
+				references.add(classRef.getTopLevelClass());
 			}
 		}
 
