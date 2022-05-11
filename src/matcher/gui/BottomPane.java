@@ -220,7 +220,7 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		ClassInstance clazz = srcPane.getSelectedClass();
 		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
 
-		Nest nest = equiv.getNest();
+		Nest nest = (equiv == null) ? null : equiv.getNest();
 		ClassInstance classNest = dstPane.getSelectedClass();
 		MethodInstance methodNest = dstPane.getSelectedMethod();
 
