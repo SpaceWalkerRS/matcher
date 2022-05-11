@@ -1287,7 +1287,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean canBeStatic() {
-		if (!canBeStatic || nest == null || nest.getType() != NestType.INNER) {
+		if (nest == null || nest.getType() != NestType.INNER) {
 			return false;
 		}
 
@@ -1297,25 +1297,13 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			return false;
 		}
 
-		MethodInstance[] methods = getSyntheticMethods();
+		FieldInstance[] fields = getSyntheticFields();
 
-		for (MethodInstance method : methods) {
-			if (!method.isStatic()) {
-				continue;
-			}
-
-			MethodVarInstance[] args = method.getArgs();
-
-			if (args.length == 1 && args[0].getType() == this) {
-				Set<MethodInstance> methodRefs = method.getRefsIn();
-
-				for (MethodInstance methodRef : methodRefs) {
-					ClassInstance classRef = methodRef.getCls();
-
-					if (classRef.encloses(this)) {
-						return false;
-					}
-				}
+		for (FieldInstance field : fields) {
+			// If this class holds a reference to an enclosing class
+			// it cannot be static
+			if (field.getType().encloses(this)) {
+				return false;
 			}
 		}
 
@@ -1360,10 +1348,6 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean canBeInner() {
-		if (!canBeStatic && hasStaticMembers()) {
-			return false;
-		}
-
 		return !isEnum() || superClass.getName().equals("java/lang/Enum");
 	}
 
@@ -1456,7 +1440,6 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			for (FieldInstance field : fields) {
 				if (field.isSynthetic() && !isEnumField(field)) {
 					syntheticFields[index++] = field;
-					canBeStatic = false;
 				}
 			}
 		}
@@ -1674,7 +1657,6 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	private Integer innerAccess;
 	private String simpleName;
 	private boolean canBeAnonymous = true;
-	private boolean canBeStatic = true;
 
 	private final Set<ClassInstance> nestingClasses = Util.newIdentityHashSet();
 
