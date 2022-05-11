@@ -626,6 +626,8 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 			announceMethodSelectionChange(oldMethodSelection, null);
 		}
 
+		onViewChange();
+
 		suppressChangeEvents = false;
 	}
 
