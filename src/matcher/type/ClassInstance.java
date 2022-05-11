@@ -1420,7 +1420,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 			int index = 0;
 			for (FieldInstance field : fields) {
-				if (field.isSynthetic()) {
+				if (field.isSynthetic() && !isEnumField(field)) {
 					syntheticFields[index++] = field;
 					canBeStatic = false;
 				}
@@ -1428,6 +1428,20 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		}
 
 		return syntheticFields;
+	}
+
+	private boolean isEnumField(FieldInstance field) {
+		if (!isEnum() || !field.isSynthetic()) {
+			return false;
+		}
+
+		ClassInstance type = field.getType();
+
+		if (!type.isArray()) {
+			return false;
+		}
+
+		return this == type.getElementClass();
 	}
 
 	public MethodInstance[] getDeclaredMethods() {
@@ -1505,7 +1519,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		fields = Arrays.copyOf(fields, fields.length + 1);
 		fields[fields.length - 1] = field;
 
-		if (field.isSynthetic()) {
+		if (field.isSynthetic() && !isEnumField(field)) {
 			syntheticFieldCount++;
 		}
 	}
