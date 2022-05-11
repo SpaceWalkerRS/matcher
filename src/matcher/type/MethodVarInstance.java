@@ -21,11 +21,11 @@ public final class MethodVarInstance implements Matchable<MethodVarInstance> {
 		this.origName = origName;
 		this.nameObfuscated = nameObfuscated;
 
-		if (!this.method.isSynthetic()) {
+		if (this.isArg) {
 			if (this.type.isArray()) {
-				this.type.elementClass.markNotAnonymous();
+				this.type.elementClass.argTypeRefs.add(this);
 			} else {
-				this.type.markNotAnonymous();
+				this.type.argTypeRefs.add(this);
 			}
 		}
 	}

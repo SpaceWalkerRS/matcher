@@ -1148,9 +1148,17 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public void markPotentialScoreDirty() {
+		if (potentialScoreDirty) {
+			return;
+		}
+
 		potentialScoreDirty = true;
 		hasStaticMembers = null;
+		isMethodArgType = null;
 
+		if (nest != null) {
+			nest.getEnclosingClass().markPotentialScoreDirty();
+		}
 		for (ClassInstance nestingClass : nestingClasses) {
 			nestingClass.markPotentialScoreDirty();
 		}
@@ -1344,7 +1352,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean canBeAnonymous() {
-		return canBeAnonymous && !isInterface() && !hasStaticMembers();
+		return canBeAnonymous && !isInterface() && !hasStaticMembers() && !isMethodArgType();
 	}
 
 	public void markNotAnonymous() {
@@ -1400,6 +1408,32 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		}
 
 		return hasStaticMembers;
+	}
+
+	public boolean isMethodArgType() {
+		if (isMethodArgType == null) {
+			for (MethodVarInstance var : argTypeRefs) {
+				MethodInstance method = var.getMethod();
+
+				if (method.isSynthetic()) {
+					continue;
+				}
+				if (method.getName().equals("<init>")) {
+					ClassInstance clazz = method.getCls();
+					Nest nest = clazz.getNest();
+
+					if (nest != null && nest.getType() == NestType.ANONYMOUS) {
+						continue;
+					}
+				}
+
+				return isMethodArgType = true;
+			}
+
+			isMethodArgType = false;
+		}
+
+		return isMethodArgType;
 	}
 
 	public boolean hasSyntheticMembers() {
@@ -1610,6 +1644,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 	final Set<MethodInstance> methodTypeRefs = Util.newIdentityHashSet();
 	final Set<FieldInstance> fieldTypeRefs = Util.newIdentityHashSet();
+	final Set<MethodVarInstance> argTypeRefs = Util.newIdentityHashSet();
 
 	final Set<String> strings = new HashSet<>();
 
@@ -1644,6 +1679,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	private final Set<ClassInstance> nestingClasses = Util.newIdentityHashSet();
 
 	private Boolean hasStaticMembers;
+	private Boolean isMethodArgType;
 	private FieldInstance[] syntheticFields;
 	private MethodInstance[] declaredMethods;
 	private MethodInstance[] instanceConstructors;
