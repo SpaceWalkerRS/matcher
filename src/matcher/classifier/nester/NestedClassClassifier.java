@@ -65,6 +65,7 @@ public class NestedClassClassifier {
 	private NestRankResult tryNestClass(ClassInstance clazz, boolean checkOnly) {
 		return clazz.isNestable() ? bestResult(
 				tryEnum(clazz, checkOnly),
+				trySwitch(clazz, checkOnly),
 				tryAnonymous(clazz, checkOnly),
 				tryInner(clazz, checkOnly)) : null;
 	}
@@ -81,6 +82,57 @@ public class NestedClassClassifier {
 		}
 
 		return checkOrAddAnonymous(clazz, superClass, null, 100, checkOnly);
+	}
+
+	private NestRankResult trySwitch(ClassInstance clazz, boolean checkOnly) {
+		// switch statements for enums are anonymous classes
+		if (!clazz.canBeAnonymous()) {
+			return null;
+		}
+
+		MethodInstance[] methods = clazz.getMethods();
+
+		// switch statements only declare 1 method...
+		if (methods.length != 1) {
+			return null;
+		}
+
+		MethodInstance method = methods[0];
+
+		// ... which is the class constructor
+		if (!method.getName().equals("<clinit>")) {
+			return null;
+		}
+
+		FieldInstance[] fields = clazz.getFields();
+
+		// switch statements only declare 1 field...
+		if (fields.length != 1) {
+			return null;
+		}
+
+		FieldInstance field = fields[0];
+
+		// ... which is an int array
+		if (!field.getDesc().equals("[I") || !field.isSynthetic()) {
+			return null;
+		}
+
+		Collection<ClassInstance> references = new LinkedHashSet<>();
+
+		for (MethodInstance ref : field.getReadRefs()) {
+			ClassInstance classRef = ref.getCls();
+
+			if (classRef != clazz) {
+				references.add(classRef);
+			}
+		}
+
+		if (references.size() != 1) {
+			return null;
+		}
+
+		return checkOrAddAnonymous(clazz, references.iterator().next(), null, 90, checkOnly);
 	}
 
 	private NestRankResult tryAnonymous(ClassInstance clazz, boolean checkOnly) {

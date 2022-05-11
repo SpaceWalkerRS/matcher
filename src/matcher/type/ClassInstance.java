@@ -1252,7 +1252,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 			markPotentialScoreDirty();
 
-			if (nest != null && nest.getType() == NestType.INNER) {
+			if (nest != null) {
 				innerAccess = getAccess();
 
 				if (hasStaticMembers()) {
@@ -1371,6 +1371,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 	public boolean hasStaticMembers() {
 		if (hasStaticMembers == null) {
+			if (isEnum()) {
+				return hasStaticMembers = false;
+			}
+
 			for (ClassInstance clazz : innerClasses) {
 				if (clazz.isStatic()) {
 					return hasStaticMembers = true;
@@ -1387,7 +1391,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 				}
 			}
 			for (MethodInstance method : methods) {
-				if (method.isStatic() && !method.isSynthetic()) {
+				if (method.isStatic() && !method.isSynthetic() && !method.getName().equals("<clinit>")) {
 					return hasStaticMembers = true;
 				}
 			}

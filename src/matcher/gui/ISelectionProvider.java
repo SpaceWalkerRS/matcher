@@ -1,6 +1,7 @@
 package matcher.gui;
 
 import matcher.classifier.RankResult;
+import matcher.classifier.nester.NestRankResult;
 import matcher.type.ClassInstance;
 import matcher.type.FieldInstance;
 import matcher.type.MatchType;
@@ -16,6 +17,9 @@ public interface ISelectionProvider {
 	MethodVarInstance getSelectedMethodVar();
 
 	default RankResult<?> getSelectedRankResult(MatchType type) {
+		return null;
+	}
+	default NestRankResult getSelectedRankResult() {
 		return null;
 	}
 }

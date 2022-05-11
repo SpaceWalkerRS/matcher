@@ -395,6 +395,15 @@ public class MatchPaneDst extends SplitPane implements IFwdGuiComponent, ISelect
 	}
 
 	@Override
+	public NestRankResult getSelectedRankResult() {
+		if (methodMatchList.getSelectionModel().isEmpty()) {
+			return classMatchList.getSelectionModel().getSelectedItem();
+		} else {
+			return methodMatchList.getSelectionModel().getSelectedItem();
+		}
+	}
+
+	@Override
 	public void onProjectChange() {
 		cmpClasses = gui.getEnv().getDisplayClassesB(!gui.isShowNonInputs());
 

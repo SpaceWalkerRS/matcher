@@ -17,6 +17,7 @@ import matcher.classifier.FieldClassifier;
 import matcher.classifier.MethodClassifier;
 import matcher.classifier.RankResult;
 import matcher.classifier.nester.Nest;
+import matcher.classifier.nester.NestRankResult;
 import matcher.classifier.nester.NestType;
 import matcher.config.Config;
 import matcher.type.ClassInstance;
@@ -220,6 +221,7 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
 
 		Nest nest = equiv.getNest();
+		NestRankResult selectedResult = dstPane.getSelectedRankResult();
 		ClassInstance classNest = dstPane.getSelectedClass();
 		MethodInstance methodNest = dstPane.getSelectedMethod();
 
@@ -230,7 +232,7 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		boolean hasMethodSelected = (methodNest != null);
 		boolean hasSelection = (classNest != null);
 
-		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous() || (!hasMethodSelected && !classNest.isEnum()));
+		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous() || (!hasMethodSelected && !classNest.isEnum() && selectedResult.getType() != NestType.ANONYMOUS));
 		addInnerClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeInner() || hasMethodSelected);
 		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
 		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || (!hasMethodSelected && !equiv.canBeAnonymous()));
