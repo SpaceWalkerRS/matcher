@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import matcher.type.ClassInstance;
@@ -284,6 +285,55 @@ public class NestedClassClassifier {
 			if (!ref.isTopLevel()) {
 				score -= 20;
 			}
+
+			if (!checkOnly) {
+				// Sometimes the enclosing class is mistaken for an inner class.
+				// If that is more likely, reduce the score
+				NestRankResult refResult = tryNestClass(ref, true);
+
+				if (refResult != null && refResult.getSubject() == clazz && refResult.getScore() > score) {
+					score -= 20;
+				}
+			}
+
+			result = bestResult(result, checkOrAddInner(clazz, ref, score, checkOnly));
+		}
+
+		// If the inner class does not reference private members of enclosing
+		// classes and enclosing classes do not reference its private members,
+		// we might still find it by simply looking at where the class is
+		// referenced.
+		Map<ClassInstance, Integer> references = new LinkedHashMap<>();
+		int total = 0;
+
+		for (FieldInstance fieldRef : clazz.getFieldTypeRefs()) {
+			ClassInstance classRef = fieldRef.getCls();
+
+			if (!clazz.encloses(classRef)) {
+				references.compute(classRef, (key, i) -> i == null ? 1 : i + 1);
+				if (!classRef.isTopLevel()) {
+					references.compute(classRef.getTopLevelClass(), (key, i) -> i == null ? 1 : i + 1);
+				}
+				total++;
+			}
+		}
+		for (MethodInstance methodRef : clazz.getMethodTypeRefs()) {
+			ClassInstance classRef = methodRef.getCls();
+
+			if (!clazz.encloses(classRef)) {
+				references.compute(classRef, (key, i) -> i == null ? 1 : i + 1);
+				if (!classRef.isTopLevel()) {
+					references.compute(classRef.getTopLevelClass(), (key, i) -> i == null ? 1 : i + 1);
+				}
+				total++;
+			}
+		}
+
+		for (Entry<ClassInstance, Integer> entry : references.entrySet()) {
+			ClassInstance ref = entry.getKey();
+			float count = entry.getValue();
+
+			int score = (int)(1 + (count / total) * 20);
 
 			if (!checkOnly) {
 				// Sometimes the enclosing class is mistaken for an inner class.
