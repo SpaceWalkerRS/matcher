@@ -221,7 +221,6 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		ClassInstance equiv = (clazz == null) ? null : clazz.equiv;
 
 		Nest nest = equiv.getNest();
-		NestRankResult selectedResult = dstPane.getSelectedRankResult();
 		ClassInstance classNest = dstPane.getSelectedClass();
 		MethodInstance methodNest = dstPane.getSelectedMethod();
 
@@ -232,7 +231,7 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		boolean hasMethodSelected = (methodNest != null);
 		boolean hasSelection = (classNest != null);
 
-		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous() || (!hasMethodSelected && !classNest.isEnum() && selectedResult.getType() != NestType.ANONYMOUS));
+		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous());
 		addInnerClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeInner() || hasMethodSelected);
 		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
 		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || (!hasMethodSelected && !equiv.canBeAnonymous()));
