@@ -105,26 +105,29 @@ public class NestedClassClassifier {
 		}
 
 		FieldInstance[] fields = clazz.getFields();
+		FieldInstance[] syntheticFields = clazz.getSyntheticFields();
 
-		// switch statements only declare 1 field...
-		if (fields.length != 1) {
+		// switch statements only declare synthetic fields...
+		if (fields.length != syntheticFields.length) {
 			return null;
 		}
 
-		FieldInstance field = fields[0];
-
-		// ... which is an int array
-		if (!field.getDesc().equals("[I") || !field.isSynthetic()) {
-			return null;
+		// ...all of which are int arrays
+		for (FieldInstance field : syntheticFields) {
+			if (!field.getDesc().equals("[I")) {
+				return null;
+			}
 		}
 
 		Collection<ClassInstance> references = new LinkedHashSet<>();
 
-		for (MethodInstance ref : field.getReadRefs()) {
-			ClassInstance classRef = ref.getCls();
+		for (FieldInstance field : syntheticFields) {
+			for (MethodInstance ref : field.getReadRefs()) {
+				ClassInstance classRef = ref.getCls();
 
-			if (classRef != clazz) {
-				references.add(classRef.getTopLevelClass());
+				if (classRef != clazz) {
+					references.add(classRef.getTopLevelClass());
+				}
 			}
 		}
 
