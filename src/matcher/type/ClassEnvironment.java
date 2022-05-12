@@ -556,7 +556,7 @@ public class ClassEnvironment implements ClassEnv {
 
 			int parentCount = cls.interfaces.size();
 
-			if (cls.superClass.isReal()) {
+			if (cls.superClass != null && cls.superClass.isReal()) {
 				parentCount++;
 			}
 

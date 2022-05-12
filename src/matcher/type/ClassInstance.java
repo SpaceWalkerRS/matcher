@@ -1348,7 +1348,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean canBeInner() {
-		return !isEnum() || superClass.getName().equals("java/lang/Enum");
+		return !isEnum() || (superClass != null && superClass.getName().equals("java/lang/Enum"));
 	}
 
 	public boolean isActuallyStatic() {
