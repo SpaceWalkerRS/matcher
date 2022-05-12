@@ -1263,8 +1263,15 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			if (nest != null) {
 				innerAccess = getAccess();
 
-				if (hasStaticMembers()) {
+				if (nest.getType() == NestType.INNER && hasStaticMembers()) {
 					innerAccess |= Opcodes.ACC_STATIC;
+				}
+				if (nest.getType() == NestType.ANONYMOUS) {
+					MethodInstance enclMethod = nest.getEnclosingMethod();
+
+					if (enclMethod != null && enclMethod.isStatic()) {
+						innerAccess |= Opcodes.ACC_STATIC;
+					}
 				}
 			}
 		}
