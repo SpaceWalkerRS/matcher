@@ -554,13 +554,7 @@ public class ClassEnvironment implements ClassEnv {
 				if (cls.interfaces.add(ifCls)) ifCls.implementers.add(cls);
 			}
 
-			int parentCount = cls.interfaces.size();
-
-			if (cls.superClass != null && cls.superClass.isReal()) {
-				parentCount++;
-			}
-
-			if (parentCount > 1) {
+			if (cls.interfaces.size() > 1) {
 				cls.markNotAnonymous();
 			}
 		}
