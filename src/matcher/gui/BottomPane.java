@@ -23,6 +23,7 @@ import matcher.config.Config;
 import matcher.type.ClassInstance;
 import matcher.type.FieldInstance;
 import matcher.type.MatchType;
+import matcher.type.MatchableKind;
 import matcher.type.MemberInstance;
 import matcher.type.MethodInstance;
 import matcher.type.MethodVarInstance;
@@ -227,18 +228,17 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		boolean hasClass = (equiv != null);
 		boolean isNestable = hasClass && equiv.isNestable();
 		boolean hasNest = hasClass && nest != null;
-		boolean isInner = hasNest && (nest.getType() == NestType.INNER);
 		boolean hasMethodSelected = (methodNest != null);
 		boolean hasSelection = (classNest != null);
 
 		addAnonymousClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeAnonymous());
-		addInnerClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeInner() || hasMethodSelected);
+		addInnerClassButton.setDisable(!hasClass || hasNest || !hasSelection || !equiv.canBeInner());
 		selectedCandidateButton.setText("selected candidate: " + getSelectedCandidateName(classNest, methodNest));
 		selectedCandidateButton.setDisable(!hasClass || hasNest || !hasSelection || (!hasMethodSelected && !equiv.canBeAnonymous()));
 		nestableButton.setText(hasClass && !hasNest && !isNestable ? "nestable" : "unnestable");
 		nestableButton.setDisable(!hasClass || (hasNest && isNestable));
 
-		accessFlagsMenu.setDisable(!hasClass || !hasNest || !isInner);
+		accessFlagsMenu.setDisable(!hasClass || !hasNest || nest.get().getKind() == MatchableKind.METHOD);
 		accessFlagsMenu.update();
 		unnestButton.setDisable(!hasClass || !hasNest);
 	}
@@ -497,12 +497,13 @@ public class BottomPane extends StackPane implements IGuiComponent {
 		}
 
 		ClassInstance classNest = dstPane.getSelectedClass();
+		MethodInstance methodNest = dstPane.getSelectedMethod();
 
 		if (classNest == null) {
 			return;
 		}
 
-		gui.getNester().addInnerClass(equiv, classNest);
+		gui.getNester().addInnerClass(equiv, classNest, methodNest);
 		gui.onNestChange();
 	}
 

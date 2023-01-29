@@ -655,7 +655,12 @@ public class MatchPaneSrc extends SplitPane implements IFwdGuiComponent, ISelect
 		return Float.compare(a.getSimilarity(), b.getSimilarity());
 	};
 
-	private static final Comparator<String> clsNameComparator = Util::compareNatural;
+	private static final Comparator<String> clsNameComparator = (s1, s2) -> {
+		int l1 = s1.length();
+		int l2 = s2.length();
+
+		return /*l1 == l2 ?*/ Util.compareNatural(s1, s2) /*: l1 - l2*/;
+	};
 
 	private static final Comparator<ClassInstance> nestStatusComparator = (a, b) -> {
 		ClassInstance aEquiv = a.equiv;

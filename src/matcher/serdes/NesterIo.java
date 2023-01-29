@@ -10,6 +10,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import matcher.Nester;
 import matcher.Util;
@@ -46,6 +47,10 @@ public class NesterIo {
 					System.err.println("Invalid mapping \'" + line + "\': missing enclosing class name argument!");
 					continue;
 				}
+				if (innerName == null || innerName.isEmpty()) {
+					System.err.println("Invalid mapping \'" + line + "\': missing inner class name argument!");
+					continue;
+				}
 
 				boolean emptyName = (enclMethodName == null) || enclMethodName.isEmpty();
 				boolean emptyDesc = (enclMethodDesc == null) || enclMethodDesc.isEmpty();
@@ -55,8 +60,17 @@ public class NesterIo {
 					enclMethodDesc = null;
 				}
 
-				if (innerName != null && innerName.isEmpty()) {
-					innerName = null;
+				int anonIndex = -1;
+
+				try {
+					anonIndex = Integer.parseInt(innerName);
+
+					if (anonIndex < 1) {
+						System.err.println("Invalid mapping \'" + line + "\': invalid anonymous class index!");
+						continue;
+					}
+				} catch (NumberFormatException e) {
+
 				}
 
 				Integer access = null;
@@ -72,14 +86,91 @@ public class NesterIo {
 					continue;
 				}
 
-				nestClass(nester, className, enclClassName, enclMethodName, enclMethodDesc, innerName, access);
+				NestP nest = new NestP(className, enclClassName, enclMethodName, enclMethodDesc, innerName, access);
+				nest = fixNest(nester, nest);
+
+				if (nest == null) {
+					continue;
+				}
+
+				nestClass(nester, nest.className, nest.enclClassName, nest.enclMethodName, nest.enclMethodDesc, nest.innerName, nest.access, anonIndex);
 			}
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
 	}
 
-	private static void nestClass(Nester nester, String className, String enclClassName, String enclMethodName, String enclMethodDesc, String innerName, int access) {
+	private static class NestP {
+
+		public String className;
+		public String enclClassName;
+		public String enclMethodName;
+		public String enclMethodDesc;
+		public String innerName;
+		public int access;
+
+		NestP(String className, String enclClassName, String enclMethodName, String enclMethodDesc, String innerName, int access) {
+			this.className = className;
+			this.enclClassName = enclClassName;
+			this.enclMethodName = enclMethodName;
+			this.enclMethodDesc = enclMethodDesc;
+			this.innerName = innerName;
+			this.access = access;
+		}
+	}
+
+	private static NestP fixNest(Nester nester, NestP nest) {
+		ClassEnvironment env = nester.getEnv();
+		ClassInstance clazz = env.getClsByNameB(nest.className);
+
+		if (clazz == null) {
+			System.err.println("WARNING: class " + nest.className + " does not exist!");
+			return null;
+		}
+
+		if (nest.enclMethodName == null) {
+
+		} else {
+			MethodInstance[] constructors = clazz.getInstanceConstructors();
+
+			if (constructors.length != 1) {
+				System.err.println("WARNING: supposedly anonymous class " + nest.className + " has " + constructors.length + " constructors!");
+				return null;
+			}
+
+			MethodInstance constr = constructors[0];
+			Set<MethodInstance> references = constr.getRefsIn();
+
+			if (references.size() != 1) {
+				System.err.println("WARNING: supposedly anonymous class " + nest.className + " is created " + references.size() + " times!");
+				return null;
+			}
+
+			MethodInstance enclMethod = references.iterator().next();
+			ClassInstance enclClass = enclMethod.getCls();
+
+			if (enclClass == clazz) {
+				System.err.println("WARNING: supposedly anonymous class " + nest.className + " is created by itself!");
+				return null;
+			}
+
+			String o = nest.enclClassName + "." + nest.enclMethodName + nest.enclMethodDesc;
+
+			nest.enclClassName = enclClass.getName();
+			nest.enclMethodName = enclMethod.getName();
+			nest.enclMethodDesc = enclMethod.getDesc();
+
+			String n = nest.enclClassName + "." + nest.enclMethodName + nest.enclMethodDesc;
+
+			if (!n.equals(o)) {
+				System.err.println("moving anonymous class " + nest.className + " from " + o + " to " + n);
+			}
+		}
+
+		return nest;
+	}
+
+	private static void nestClass(Nester nester, String className, String enclClassName, String enclMethodName, String enclMethodDesc, String innerName, int access, int anonIndex) {
 		ClassEnvironment env = nester.getEnv();
 		ClassInstance clazz = env.getClsByNameB(className);
 
@@ -106,13 +197,29 @@ public class NesterIo {
 			}
 		}
 
-		if (innerName == null) {
+		if (anonIndex > 0) {
 			nester.addAnonymousClass(clazz, enclClass, enclMethod);
 		} else {
-			nester.addInnerClass(clazz, enclClass, innerName);
+			nester.addInnerClass(clazz, enclClass, enclMethod);
+			clazz.setInnerName(stripLocalClassPrefix(innerName));
 		}
 
 		clazz.setInnerAccess(access);
+	}
+
+	private static String stripLocalClassPrefix(String innerName) {
+		int nameStart = 0;
+
+		// local class names start with a number prefix
+		while (nameStart < innerName.length() && Character.isDigit(innerName.charAt(nameStart))) {
+			nameStart++;
+		}
+		// if entire inner name is a number, this class is anonymous, not local
+		if (nameStart == innerName.length()) {
+			nameStart = 0;
+		}
+
+		return innerName.substring(nameStart);
 	}
 
 	public static boolean write(Nester nester, Path path) throws IOException {
@@ -161,15 +268,12 @@ public class NesterIo {
 		String enclClassName = enclClass.getName();
 		String enclMethodName = "";
 		String enclMethodDesc = "";
-		String innerName = clazz.getSimpleName();
+		String innerName = clazz.getLocalPrefix() + clazz.getInnerName();
 		String access = String.valueOf(rawAccess);
 
 		if (enclMethod != null) {
 			enclMethodName = enclMethod.getName();
 			enclMethodDesc = enclMethod.getDesc();
-		}
-		if (innerName == null) {
-			innerName = "";
 		}
 
 		w.write(className);

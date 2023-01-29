@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -517,6 +518,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return (getAccess() & Opcodes.ACC_RECORD) != 0 || superClass != null && superClass.id.equals("Ljava/lang/Record;");
 	}
 
+	public boolean isSynthetic() {
+		return (getAccess() & Opcodes.ACC_SYNTHETIC) != 0;
+	}
+
 	public MethodInstance getMethod(String id) {
 		return methodIdx.get(id);
 	}
@@ -887,6 +892,10 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 		return fieldTypeRefs;
 	}
 
+	public Set<MethodVarInstance> getArgTypeRefs() {
+		return argTypeRefs;
+	}
+
 	public Set<String> getStrings() {
 		return strings;
 	}
@@ -1190,7 +1199,7 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public boolean isNestable() {
-		return nestable && isReal() && outerClass == null;
+		return nestable && isReal();
 	}
 
 	public void setNestable(boolean nestable) {
@@ -1241,12 +1250,23 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 			}
 
 			innerAccess = null;
+			innerName = "";
+			localPrefix = "";
 
 			if (nest != null) {
 				ClassInstance enclClass = nest.getEnclosingClass();
 
 				enclClass.nestingClasses.remove(this);
 				enclClass.markPotentialScoreDirty();
+
+				if (nest.getType() == NestType.ANONYMOUS) {
+					enclClass.removeAnonymousClass(this);
+				}
+				if (nest.getType() == NestType.INNER) {
+					if (nest.get().getKind() == MatchableKind.METHOD) {
+						enclClass.removeLocalClass(this);
+					}
+				}
 			}
 
 			nest = n;
@@ -1256,24 +1276,65 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 
 				enclClass.nestingClasses.add(this);
 				enclClass.markPotentialScoreDirty();
+
+				if (nest.getType() == NestType.ANONYMOUS) {
+					enclClass.addAnonymousClass(this);
+				}
+				if (nest.getType() == NestType.INNER) {
+					if (nest.get().getKind() == MatchableKind.METHOD) {
+						enclClass.addLocalClass(this);
+					}
+				}
 			}
 
 			markPotentialScoreDirty();
 
 			if (nest != null) {
-				innerAccess = getAccess();
+				setInnerAccess(getAccess());
 
-				if (nest.getType() == NestType.INNER && hasStaticMembers()) {
-					innerAccess |= Opcodes.ACC_STATIC;
-				}
-				if (nest.getType() == NestType.ANONYMOUS) {
-					MethodInstance enclMethod = nest.getEnclosingMethod();
-
-					if (enclMethod == null || enclMethod.isStatic()) {
-						innerAccess |= Opcodes.ACC_STATIC;
-					}
+				if (nest.getType() == NestType.INNER) {
+					innerName = getInnerName(getClassName(getName()));
 				}
 			}
+		}
+	}
+
+	private void addAnonymousClass(ClassInstance c) {
+		anonymousClasses.add(c);
+		updateAnonymousClassNames();
+	}
+
+	private void removeAnonymousClass(ClassInstance c) {
+		anonymousClasses.remove(c);
+		updateAnonymousClassNames();
+	}
+
+	private void updateAnonymousClassNames() {
+		int index = 1;
+
+		for (ClassInstance c : anonymousClasses) {
+			c.innerName = Integer.toString(index++);
+		}
+	}
+
+	private void addLocalClass(ClassInstance c) {
+		localClasses.add(c);
+		updateLocalClassNames();
+	}
+
+	private void removeLocalClass(ClassInstance c) {
+		localClasses.remove(c);
+		updateLocalClassNames();
+	}
+
+	private void updateLocalClassNames() {
+		// local class prefixes do not have to be unique
+		// but in order to make this this class remappable
+		// without issues, we give it a unique number
+		int prefix = 1;
+
+		for (ClassInstance c : localClasses) {
+			c.localPrefix = Integer.toString(prefix++);
 		}
 	}
 
@@ -1282,15 +1343,43 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	}
 
 	public void setInnerAccess(int access) {
-		innerAccess = access;
+		innerAccess = access &
+			(Opcodes.ACC_PUBLIC |
+			Opcodes.ACC_PRIVATE |
+			Opcodes.ACC_PROTECTED |
+			Opcodes.ACC_STATIC |
+			Opcodes.ACC_FINAL |
+			Opcodes.ACC_INTERFACE |
+			Opcodes.ACC_ABSTRACT |
+			Opcodes.ACC_SYNTHETIC |
+			Opcodes.ACC_ANNOTATION |
+			Opcodes.ACC_ENUM |
+			Opcodes.ACC_MODULE);
+
+		if (nest.getType() == NestType.INNER && hasStaticMembers()) {
+			innerAccess |= Opcodes.ACC_STATIC;
+		}
+		if (nest.getType() == NestType.ANONYMOUS) {
+			MethodInstance enclMethod = nest.getEnclosingMethod();
+
+			if (enclMethod == null || enclMethod.isStatic()) {
+				innerAccess |= Opcodes.ACC_STATIC;
+			}
+
+			innerAccess &= ~Opcodes.ACC_FINAL;
+		}
 	}
 
-	public String getSimpleName() {
-		return simpleName;
+	public String getInnerName() {
+		return innerName;
 	}
 
-	public void setSimpleName(String name) {
-		simpleName = name;
+	public void setInnerName(String name) {
+		innerName = name;
+	}
+
+	public String getLocalPrefix() {
+		return localPrefix;
 	}
 
 	public boolean canBeStatic() {
@@ -1662,10 +1751,27 @@ public final class ClassInstance implements Matchable<ClassInstance> {
 	private boolean nestable = true;
 	private Nest nest;
 	private Integer innerAccess;
-	private String simpleName;
+	private String innerName = "";
+	private String localPrefix = "";
 	private boolean canBeAnonymous = true;
 
 	private final Set<ClassInstance> nestingClasses = Util.newIdentityHashSet();
+	private final Set<ClassInstance> anonymousClasses = new TreeSet<>((c1, c2) -> {
+		String name1 = c1.getName();
+		String name2 = c2.getName();
+		int l1 = name1.length();
+		int l2 = name2.length();
+
+		return l1 == l2 ? Util.compareNatural(name1, name2) : l1 - l2;
+	});
+	private final Set<ClassInstance> localClasses = new TreeSet<>((c1, c2) -> {
+		String name1 = c1.getName();
+		String name2 = c2.getName();
+		int l1 = name1.length();
+		int l2 = name2.length();
+
+		return l1 == l2 ? Util.compareNatural(name1, name2) : l1 - l2;
+	});
 
 	private Boolean hasStaticMembers;
 	private Boolean isMethodArgType;

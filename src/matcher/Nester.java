@@ -45,16 +45,10 @@ public class Nester {
 
 	public void addAnonymousClass(ClassInstance clazz, ClassInstance enclClass, MethodInstance enclMethod) {
 		nest(clazz, (enclMethod == null) ? enclClass : enclMethod, NestType.ANONYMOUS);
-		clazz.setSimpleName(null);
 	}
 
-	public void addInnerClass(ClassInstance clazz, ClassInstance enclClass) {
-		addInnerClass(clazz, enclClass, clazz.getName());
-	}
-
-	public void addInnerClass(ClassInstance clazz, ClassInstance enclClass, String simpleName) {
-		nest(clazz, enclClass, NestType.INNER);
-		clazz.setSimpleName(simpleName);
+	public void addInnerClass(ClassInstance clazz, ClassInstance enclClass, MethodInstance enclMethod) {
+		nest(clazz, (enclMethod == null) ? enclClass : enclMethod, NestType.INNER);
 	}
 
 	public void nest(ClassInstance clazz, Matchable<?> nest, NestType type) {
@@ -76,7 +70,6 @@ public class Nester {
 		System.out.println("unnest class " + clazz + " from " + clazz.getNest());
 
 		clazz.setNest(null);
-		clazz.setSimpleName(null);
 	}
 
 	public void autoNestAll(DoubleConsumer progressReceiver) {
@@ -126,10 +119,6 @@ public class Nester {
 			NestType type = bestResult.getType();
 
 			nest(clazz, nest, type);
-
-			if (type == NestType.INNER) {
-				clazz.setSimpleName(clazz.getName());
-			}
 		}
 	}
 
@@ -161,7 +150,7 @@ public class Nester {
 			if (equiv.hasNest()) {
 				nestedClassCount++;
 
-				if (equiv.getSimpleName() == null) {
+				if (equiv.getNest().getType() == NestType.ANONYMOUS) {
 					anonymousClassCount++;
 				} else {
 					innerClassCount++;

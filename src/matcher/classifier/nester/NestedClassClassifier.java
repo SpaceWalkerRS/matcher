@@ -15,6 +15,7 @@ import matcher.type.ClassInstance;
 import matcher.type.FieldInstance;
 import matcher.type.Matchable;
 import matcher.type.MethodInstance;
+import matcher.type.MethodVarInstance;
 
 public class NestedClassClassifier {
 
@@ -144,6 +145,27 @@ public class NestedClassClassifier {
 		// the type of a field or variable, or the return type of a method...
 		if (!clazz.canBeAnonymous()) {
 			return null;
+		}
+
+		// Sometimes a synthetic anonymous class is created for other inner classes.
+		if (clazz.isSynthetic()) {
+			// it would be passed as an method arg
+			Collection<MethodVarInstance> argRefs = clazz.getArgTypeRefs();
+
+			if (argRefs.size() != 1) {
+				return null;
+			}
+
+			MethodVarInstance arg = argRefs.iterator().next();
+
+			if (!arg.isArg()) {
+				return null;
+			}
+
+			ClassInstance argClass = arg.getMethod().getCls();
+			ClassInstance enclClass = argClass.getTopLevelClass();
+
+			return checkOrAddAnonymous(clazz, enclClass, null, 95, checkOnly);
 		}
 
 		MethodInstance[] constructors = clazz.getInstanceConstructors();
